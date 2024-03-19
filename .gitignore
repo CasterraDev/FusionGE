@@ -1,3 +1,6 @@
+engine/
+testbed/
+tests/
 bin/
 obj/
 compile_commands.json
