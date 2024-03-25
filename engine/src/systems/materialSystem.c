@@ -7,7 +7,7 @@
 #include "helpers/dinoArray.h"
 #include "core/fmemory.h"
 #include "core/logger.h"
-#include "platform/filesystem.h"
+#include "resources/resourceManager.h"
 
 typedef struct materialSystemState
 {
@@ -22,7 +22,6 @@ typedef struct materialSystemState
 static materialSystemState* systemPtr;
 
 void destroyMaterial(material* mat);
-b8 loadFromFile(const char* materialName, material* outMaterial);
 
 void materialSystemInit(u64* memoryRequirement, void* state, materialSystemSettings settings){
     // Block of memory will contain state structure, then block for array, then block for hashtable.
@@ -95,19 +94,25 @@ material* materialSystemMaterialGet(const char* name){
     b8 alreadyCreated = hashtableGetID(&systemPtr->materialIDs, name, &matID);
 
     if (!alreadyCreated){
-        material m;
-        if (!loadFromFile(name, &m)){
-            m = *materialSystemGetDefault();
+        material* m;
+        resource res;
+        if (!resourceLoad(name, RESOURCE_TYPE_MATERIAL, &res)){
+            m = materialSystemGetDefault();
+        }else{
+            m = (material*)res.data;
         }
         //TODO: TEMP
-        m.texMaps = 0;
+        m->texMaps = 0;
         //TODO: END TEMP
-        if (!rendererCreateMaterial(&m)){
+
+        resourceUnload(&res);
+        
+        if (!rendererCreateMaterial(m)){
             FERROR("Could not make default material");
             return false;
         }
-        m.id = matID;
-        systemPtr->materials[matID] = m;
+        m->id = matID;
+        systemPtr->materials[matID] = *m;
         hashtableSet(&systemPtr->materialIDs, name, &matID);
     }
     systemPtr->materials[matID].generation++;
@@ -162,56 +167,4 @@ void destroyMaterial(material* mat){
         mat->generation = INVALID_ID;
         mat->shaderID = INVALID_ID;
     }
-}
-
-b8 loadFromFile(const char* materialName, material* outMaterial){
-        material* m = outMaterial;
-        char* fmtStr = "../Assets/%s.fmat";
-        char fileLocation[512];
-        strFmt(fileLocation, fmtStr, materialName);
-        fileHandle f;
-        if (!fsOpen(fileLocation, FILE_MODE_READ, false, &f)){
-            FERROR("Could not open file: %s", materialName);
-            return false;
-        }
-        char lineBuffer[512] = "";
-        char* c = &lineBuffer[0];
-        u64 lineLen = 0;
-        while(fsReadLine(&f, 511, &c, &lineLen)){
-            char* trimmed = strTrim(lineBuffer);
-            lineLen = strLength(trimmed);
-            //Skip blank or comments (#)
-            if (lineLen < 1 || trimmed[0] == '#'){
-                continue;
-            }
-            i32 equalIdx = strIdxOf(trimmed, '=');
-            if (equalIdx == -1){
-                FERROR("Formating error in %s. Skipping Line.", fileLocation);
-                continue;
-            }
-
-            char varName[64];
-            fzeroMemory(varName, sizeof(char) * 64);
-            strCut(varName, trimmed, 0, equalIdx);
-            char* tvar = strTrim(varName);
-            char value[446];
-            fzeroMemory(value, sizeof(char) * 446);
-            strCut(value, trimmed, equalIdx + 1, -1);
-            char* tval = strTrim(value);
-            
-            if (strEqualI(tvar, "Name")){
-                strCpy(m->name, tval);
-            } else if (strEqualI(tvar, "DiffuseMapName")) { //TODO: TEMP
-                m->diffuseMap.texture = textureSystemTextureGetCreate(tval, true);
-            } else if (strEqualI(tvar, "DiffuseColor")) {
-                // Parse the colour
-                if (!strToVec4(tval, &m->diffuseColor)) {
-                    FWARN("Error parsing diffuseColor in file '%s'. Using default of white instead.", fileLocation);
-                    m->diffuseColor = vec4One();  // white
-                }
-            }
-        }
-        m->generation = 0;
-        m->refCnt = 1;
-        return true;
 }

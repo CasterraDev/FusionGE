@@ -4,6 +4,7 @@
 #include "math/matrixMath.h"
 
 #define FILENAME_MAX_LENGTH 256
+#define MATERIAL_MAX_LENGTH 256
 #define TEXTURE_MAX_TEXTURES 1024
 #define MAX_MATERIAL_COUNT 1024
 

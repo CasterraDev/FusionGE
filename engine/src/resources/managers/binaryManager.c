@@ -18,14 +18,14 @@ b8 binaryManagerLoad(resourceManager* self, const char* name, resource* outRes){
     char path[512];
     strFmt(path, fmtStr, resourceManagerRootAssetPath(), name, "");
 
-    //TODO: Could be memory leaks
-    outRes->fullPath = strDuplicate(path);
-
     fileHandle fh;
     if (!fsOpen(path, FILE_MODE_READ, true, &fh)){
         FERROR("Binary Manager unable to load binary file: %s", path);
         return false;
     }
+
+    //TODO: Could be memory leaks
+    outRes->fullPath = strDuplicate(path);
 
     u64 fileSize = 0;
     if (!fsSize(&fh, &fileSize)){

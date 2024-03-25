@@ -4,6 +4,7 @@
 //Managers
 #include "managers/imageManager.h"
 #include "managers/binaryManager.h"
+#include "managers/materialManager.h"
 
 typedef struct resourceManagerState{
     resourceManagerSettings settings;
@@ -36,6 +37,7 @@ b8 resourceManagerInit(u64* memoryRequirement, void* state, resourceManagerSetti
     //Load all standard managers
     resourceManagerLoadManager(imageManagerCreate());
     resourceManagerLoadManager(binaryManagerCreate());
+    resourceManagerLoadManager(materialManagerCreate());
 
     FINFO("Current resource manager root asset path is %s", settings.rootAssetPath);
     return true;
