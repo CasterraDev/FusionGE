@@ -293,6 +293,9 @@ b8 appRun() {
 
             header.geometryCnt = 1;
             header.geometries = &testGeoHeader;
+
+            header.uiGeometryCnt = 0;
+            header.uiGeometries = 0;
             // TODO: end temp
             rendererDraw(&header);
 

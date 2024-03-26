@@ -5,8 +5,6 @@
 #include "vulkanSwapchain.h"
 #include "renderpass.h"
 #include "commandBuffer.h"
-#include "framebuffer.h"
-#include "vulkanFence.h"
 #include "utils.h"
 #include "vulkanBuffers.h"
 #include "vulkanImage.h"
@@ -16,7 +14,8 @@
 #include "core/fmemory.h"
 #include "core/application.h"
 
-#include "shaders/vulkanObjectShader.h"
+#include "shaders/vulkanMaterialShader.h"
+#include "shaders/vulkanUIShader.h"
 
 #include "helpers/dinoArray.h"
 
@@ -41,7 +40,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debugCallback(
 i32 findMemoryIdx(u32 typeFilter, u32 propertyFlags);
 
 void createCommandBuffers(rendererBackend* backend);
-void regenerateFramebuffers(rendererBackend* backend, vulkanSwapchain* swapchain, vulkanRenderpass* renderpass);
+void regenerateFramebuffers();
 
 b8 recreateSwapchain(rendererBackend* backend);
 
@@ -138,9 +137,9 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
 
     // Obtain a list of available validation layers
     u32 availLayerCnt = 0;
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&availLayerCnt, 0));
+    VULKANSUCCESS(vkEnumerateInstanceLayerProperties(&availLayerCnt, 0));
     VkLayerProperties* availLayers = dinoCreateReserve(availLayerCnt, VkLayerProperties);
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&availLayerCnt, availLayers));
+    VULKANSUCCESS(vkEnumerateInstanceLayerProperties(&availLayerCnt, availLayers));
 
     // Verify all required layers are available.
     for (u32 i = 0; i < requiredValLayersCnt; ++i) {
@@ -169,7 +168,7 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
     instanceInfo.ppEnabledExtensionNames = requiredExts;
 
     //TODO: Create custom allocater
-    VK_CHECK(vkCreateInstance(&instanceInfo,header.allocator,&header.instance));
+    VULKANSUCCESS(vkCreateInstance(&instanceInfo,header.allocator,&header.instance));
     FINFO("Vulkan Instance Created")
 
     //Clear up the dinos
@@ -194,7 +193,7 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
     PFN_vkCreateDebugUtilsMessengerEXT func =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(header.instance, "vkCreateDebugUtilsMessengerEXT");
     FASSERT_MSG(func, "Failed to create debug messenger!");
-    VK_CHECK(func(header.instance, &debugCreateInfo, header.allocator, &header.debugMessenger));
+    VULKANSUCCESS(func(header.instance, &debugCreateInfo, header.allocator, &header.debugMessenger));
     FDEBUG("Vulkan debugger created.");
 #endif
 
@@ -217,18 +216,30 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
         header.framebufferHeight,
         &header.swapchain);
 
-    //Create Renderpass
+    //------------------Create Renderpasses
+    // World Renderpass
     vulkanRenderpassCreate(
         &header,
         &header.mainRenderpass,
-        0, 0, header.framebufferWidth, header.framebufferHeight,
-        0.0f, 0.0f, 0.2f, 1.0f,
+        (vector4){0, 0, header.framebufferWidth, header.framebufferHeight},
+        (vector4){0.0f, 0.0f, 0.2f, 1.0f},
         1.0f,
-        0);
+        0,
+        RENDERPASS_CLEAR_COLOR_BUFFER_FLAG | RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG | RENDERPASS_CLEAR_STENCIL_BUFFER_FLAG,
+        false, true);
+    // UI Renderpass
+    vulkanRenderpassCreate(
+        &header,
+        &header.uiRenderpass,
+        (vector4){0, 0, header.framebufferWidth, header.framebufferHeight},
+        (vector4){0.0f, 0.0f, 0.2f, 1.0f},
+        1.0f,
+        0,
+        RENDERPASS_CLEAR_NONE_FLAG,
+        true, false);
 
     //Swapchain framebuffers
-    header.swapchain.framebuffers = dinoCreateReserve(header.swapchain.imageCnt, vulkanFramebuffer);
-    regenerateFramebuffers(backend, &header.swapchain, &header.mainRenderpass);
+    regenerateFramebuffers();
     
     //Create Command Buffers
     createCommandBuffers(backend);
@@ -236,7 +247,6 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
     //Create Sync Objects
     header.imageAvailSemaphores = dinoCreateReserve(header.swapchain.maxNumOfFramesInFlight, VkSemaphore);
     header.queueCompleteSemaphores = dinoCreateReserve(header.swapchain.maxNumOfFramesInFlight, VkSemaphore);
-    header.inFlightFences = dinoCreateReserve(header.swapchain.maxNumOfFramesInFlight, vulkanFence);
 
     for (u8 i = 0; i < header.swapchain.maxNumOfFramesInFlight; ++i){
         VkSemaphoreCreateInfo semaphoreCreateInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -246,18 +256,22 @@ b8 vulkanInit(struct rendererBackend* backend, const char* appName){
         //Create the fence in a signaled state, indicating that the first frame has already been "rendered".
         //This will prevent the app from waiting indefinitely for the first frame to render since it
         //Cannot be rendered until a frame is "rendered" before it
-        vulkanFenceCreate(&header, true, &header.inFlightFences[i]);
+        VkFenceCreateInfo fenceCI = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+        fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        VULKANSUCCESS(vkCreateFence(header.device.logicalDevice, &fenceCI, header.allocator, &header.inFlightFences[i]));
     }
 
     // In flight fences should not yet exist at this point, so clear the list. These are stored in pointers
     // because the initial state should be 0, and will be 0 when not in use. Acutal fences are not owned
     // by this list.
-    header.imagesInFlight = dinoCreateReserve(header.swapchain.imageCnt, vulkanFence);
     for (u32 i = 0; i < header.swapchain.imageCnt; ++i) {
         header.imagesInFlight[i] = 0;
     }
 
-    if (!vulkanShaderCreate(&header, &header.objectShader)){
+    if (!vulkanMaterialShaderCreate(&header, &header.materialShader)){
+        FERROR("Failed to create shaders");
+    }
+    if (!vulkanUIShaderCreate(&header, &header.uiShader)){
         FERROR("Failed to create shaders");
     }
     FINFO("Created shaders");
@@ -282,7 +296,8 @@ void vulkanShutdown(struct rendererBackend* backend){
     vulkanBufferDestroy(&header, &header.objectVertexBuffer);
     vulkanBufferDestroy(&header, &header.objectIndexBuffer);
 
-    vulkanShaderDestroy(&header, &header.objectShader);
+    vulkanMaterialShaderDestroy(&header, &header.uiShader);
+    vulkanMaterialShaderDestroy(&header, &header.materialShader);
 
     //Sync Objects
     for (u8 i = 0; i < header.swapchain.maxNumOfFramesInFlight; ++i){
@@ -294,19 +309,13 @@ void vulkanShutdown(struct rendererBackend* backend){
             vkDestroySemaphore(header.device.logicalDevice, header.queueCompleteSemaphores[i], header.allocator);
             header.queueCompleteSemaphores[i] = 0;
         }
-        vulkanFenceDestroy(&header, &header.inFlightFences[i]);
+        vkDestroyFence(header.device.logicalDevice, header.inFlightFences[i], header.allocator);
     }
     dinoDestroy(header.imageAvailSemaphores);
     header.imageAvailSemaphores = 0;
 
     dinoDestroy(header.queueCompleteSemaphores);
     header.queueCompleteSemaphores = 0;
-
-    dinoDestroy(header.inFlightFences);
-    header.inFlightFences = 0;
-
-    dinoDestroy(header.imagesInFlight);
-    header.imagesInFlight = 0;
 
     //Command Buffers
     for (u32 i = 0; i < header.swapchain.imageCnt; ++i){
@@ -320,10 +329,12 @@ void vulkanShutdown(struct rendererBackend* backend){
 
     //Destroy Framebuffers
     for (u32 i = 0; i < header.swapchain.imageCnt; ++i){
-        vulkanFramebufferDestroy(&header, &header.swapchain.framebuffers[i]);
+        vkDestroyFramebuffer(header.device.logicalDevice, header.worldFrameBuffers[i], header.allocator);
+        vkDestroyFramebuffer(header.device.logicalDevice, header.swapchain.framebuffers[i], header.allocator);
     }
 
     //Renderpass
+    vulkanRenderpassDestroy(&header, &header.uiRenderpass);
     vulkanRenderpassDestroy(&header, &header.mainRenderpass);
 
     //Swapchain
@@ -360,23 +371,32 @@ void vulkanResized(struct rendererBackend* backend, u16 width, u16 height){
 }
 
 void vulkanUpdateGlobalState(mat4 projection, mat4 view, vector3 viewPos, vector4 ambientColor, i32 mode){
-    vulkanShaderUse(&header, &header.objectShader);
+    vulkanMaterialShaderUse(&header, &header.materialShader);
 
-    header.objectShader.globalUbo.proj = projection;
-    header.objectShader.globalUbo.view = view;
+    header.materialShader.globalUbo.proj = projection;
+    header.materialShader.globalUbo.view = view;
 
-    vulkanShaderUpdateGlobalState(&header, &header.objectShader);
+    vulkanMaterialShaderUpdateGlobalState(&header, &header.materialShader);
+}
+
+void vulkanUpdateUIState(mat4 projection, mat4 view, i32 mode){
+    vulkanUIShaderUse(&header, &header.uiShader);
+
+    header.uiShader.globalUbo.proj = projection;
+    header.uiShader.globalUbo.view = view;
+
+    vulkanUIShaderUpdateGlobalState(&header, &header.uiShader);
 }
 
 void vulkanDrawGeometry(geometryRenderData data){
     vulkanGeometryData* bd = &header.geometries[data.geometry->internalID];
     vulkanCommandBuffer* cb = &header.graphicsCommandBuffers[header.imageIdx];
-    vulkanShaderUse(&header, &header.objectShader);
-    vulkanShaderSetModel(&header, &header.objectShader, data.model);
+    vulkanMaterialShaderUse(&header, &header.materialShader);
+    vulkanMaterialShaderSetModel(&header, &header.materialShader, data.model);
     if (data.geometry->material){
-        vulkanShaderApplyMaterial(&header, &header.objectShader, data.geometry->material);
+        vulkanMaterialShaderApplyMaterial(&header, &header.materialShader, data.geometry->material);
     }else{
-        vulkanShaderApplyMaterial(&header, &header.objectShader, materialSystemGetDefault());
+        vulkanMaterialShaderApplyMaterial(&header, &header.materialShader, materialSystemGetDefault());
     }
 
 
@@ -425,8 +445,9 @@ b8 vulkanBeginFrame(struct rendererBackend* backend, f32 deltaTime){
         return false;
     }
 
-    if (!vulkanFenceWait(&header, &header.inFlightFences[header.currentFrame], UINT64_MAX)){
-        FWARN("In flight fence wait failed.");
+    VkResult result = vkWaitForFences(header.device.logicalDevice, 1, &header.inFlightFences[header.currentFrame], true, UINT64_MAX);
+    if (!successfullVulkanResult(result)){
+        FERROR("In flight fence wait failed. %s", vulkanResultStr(result, true));
         return false;
     }
 
@@ -458,11 +479,8 @@ b8 vulkanBeginFrame(struct rendererBackend* backend, f32 deltaTime){
     vkCmdSetViewport(cb->handle, 0, 1, &vp);
     vkCmdSetScissor(cb->handle, 0, 1, &scissor);
 
-    header.mainRenderpass.w = header.framebufferWidth;
-    header.mainRenderpass.h = header.framebufferHeight;
-
-    //Begin renderpass
-    vulkanRenderpassBegin(cb, &header.mainRenderpass, header.swapchain.framebuffers[header.imageIdx].handle);
+    header.mainRenderpass.renderArea.z = header.framebufferWidth;
+    header.mainRenderpass.renderArea.w = header.framebufferHeight;
 
     return true;
 }
@@ -470,20 +488,21 @@ b8 vulkanBeginFrame(struct rendererBackend* backend, f32 deltaTime){
 b8 vulkanEndFrame(struct rendererBackend* backend, f32 deltaTime){
     vulkanCommandBuffer* cb = &header.graphicsCommandBuffers[header.imageIdx];
 
-    //End renderpass
-    vulkanRenderpassEnd(cb, &header.mainRenderpass);
-
     vulkanCommandBufferEnd(cb);
 
     if (header.imagesInFlight[header.imageIdx] != VK_NULL_HANDLE){
-        vulkanFenceWait(&header, header.imagesInFlight[header.imageIdx], UINT64_MAX);
+        VkResult result = vkWaitForFences(header.device.logicalDevice, 1, &header.inFlightFences[header.currentFrame], true, UINT64_MAX);
+        if (!successfullVulkanResult(result)){
+            FFATAL("In flight fence wait failed. %s", vulkanResultStr(result, true));
+            return false;
+        }
     }
 
     //Mark the image fence as in-use by this frame
     header.imagesInFlight[header.imageIdx] = &header.inFlightFences[header.currentFrame];
 
     //Reset the fence for use on the next frame
-    vulkanFenceReset(&header, &header.inFlightFences[header.currentFrame]);
+    VULKANSUCCESS(vkResetFences(header.device.logicalDevice, 1, &header.inFlightFences[header.currentFrame]));
 
     VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
     //Command buffer(s) to be executed.
@@ -500,8 +519,8 @@ b8 vulkanEndFrame(struct rendererBackend* backend, f32 deltaTime){
     VkPipelineStageFlags flags[1] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = flags;
 
-    VkResult res = vkQueueSubmit(header.device.graphicsQueue, 1, &submitInfo, header.inFlightFences[header.currentFrame].handle);
-    if (res != VK_SUCCESS){
+    VkResult res = vkQueueSubmit(header.device.graphicsQueue, 1, &submitInfo, header.inFlightFences[header.currentFrame]);
+    if (!successfullVulkanResult(res)){
         FERROR("vkQueueSubmit failed with a result of: %s", vulkanResultStr(res, true));
         return false;
     }
@@ -513,6 +532,67 @@ b8 vulkanEndFrame(struct rendererBackend* backend, f32 deltaTime){
     vulkanSwapchainPresent(&header, &header.swapchain, header.device.graphicsQueue,
         header.device.presentQueue, header.queueCompleteSemaphores[header.currentFrame], header.imageIdx);
 
+    return true;
+}
+
+b8 vulkanBeginRenderpass(struct rendererBackend* backend, u8 renderpassID){
+    VkFramebuffer fb = 0;
+    vulkanRenderpass* rp = 0;
+    vulkanCommandBuffer* cb = &header.graphicsCommandBuffers[header.imageIdx];
+
+    switch(renderpassID){
+        case BUILTIN_RENDERPASS_WORLD: {
+            fb = header.worldFrameBuffers[header.imageIdx];
+            rp = &header.mainRenderpass;
+            break;
+        }
+        case BUILTIN_RENDERPASS_UI: {
+            fb = header.swapchain.framebuffers[header.imageIdx];
+            rp = &header.uiRenderpass;
+            break;
+        }
+        default: {
+            FWARN("Begining renderpass of unknown id failed. %#02x", renderpassID);
+            return false;
+        }
+    }
+
+    vulkanRenderpassBegin(cb, rp, fb);
+
+    switch (renderpassID) {
+        case BUILTIN_RENDERPASS_WORLD: {
+            vulkanMaterialShaderUse(&header, &header.materialShader);
+            break;
+        }
+        case BUILTIN_RENDERPASS_UI: {
+            vulkanUIShaderUse(&header, &header.uiShader);
+            break;
+        }
+    }
+
+    return true;
+}
+
+b8 vulkanEndRenderpass(struct rendererBackend* backend, u8 renderpassID){
+    vulkanRenderpass* rp = 0;
+    vulkanCommandBuffer* cb = &header.graphicsCommandBuffers[header.imageIdx];
+
+    switch(renderpassID){
+        case BUILTIN_RENDERPASS_WORLD: {
+            rp = &header.mainRenderpass;
+            break;
+        }
+        case BUILTIN_RENDERPASS_UI: {
+            rp = &header.uiRenderpass;
+            break;
+        }
+        default: {
+            FWARN("Ending renderpass of unknown id failed. %#02x", renderpassID);
+            return false;
+        }
+    }
+
+    vulkanRenderpassEnd(cb, rp);
     return true;
 }
 
@@ -573,14 +653,35 @@ void createCommandBuffers(rendererBackend* backend){
     FINFO("Vulkan command buffers created.");
 }
 
-void regenerateFramebuffers(rendererBackend* backend, vulkanSwapchain* swapchain, vulkanRenderpass* renderpass){
-    for (u32 i = 0; i < swapchain->imageCnt; ++i){
-        u32 attachmentCnt = 2;
-        VkImageView attachments[] = {
-            swapchain->views[i],
-            swapchain->depthAttachment.view};
+void regenerateFramebuffers(){
+    u32 cnt = header.swapchain.imageCnt;
+    for (u32 i = 0; i < cnt; ++i){
+        VkImageView worldAttachments[2] = {
+            header.swapchain.views[i],
+            header.swapchain.depthAttachment.view
+        };
 
-        vulkanFramebufferCreate(&header, renderpass, header.framebufferWidth, header.framebufferHeight, attachmentCnt, attachments, &header.swapchain.framebuffers[i]);
+        VkFramebufferCreateInfo worldFBCI = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+        worldFBCI.renderPass = header.mainRenderpass.handle;
+        worldFBCI.attachmentCount = 2;
+        worldFBCI.pAttachments = worldAttachments;
+        worldFBCI.width = header.framebufferWidth;
+        worldFBCI.height = header.framebufferHeight;
+        worldFBCI.layers = 1;
+
+        VULKANSUCCESS(vkCreateFramebuffer(header.device.logicalDevice, &worldFBCI, header.allocator, &header.worldFrameBuffers[i]));
+        
+        VkImageView uiAttachments[1] = {header.swapchain.views[i]};
+
+        VkFramebufferCreateInfo uiFBCI = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+        uiFBCI.renderPass = header.uiRenderpass.handle;
+        uiFBCI.attachmentCount = 1;
+        uiFBCI.pAttachments = uiAttachments;
+        uiFBCI.width = header.framebufferWidth;
+        uiFBCI.height = header.framebufferHeight;
+        uiFBCI.layers = 1;
+
+        VULKANSUCCESS(vkCreateFramebuffer(header.device.logicalDevice, &uiFBCI, header.allocator, &header.swapchain.framebuffers[i]));
     }
 }
 
@@ -616,8 +717,8 @@ b8 recreateSwapchain(rendererBackend* backend){
     vulkanSwapchainRecreate(&header, cachedFramebufferWidth, cachedFramebufferHeight, &header.swapchain);
     header.framebufferWidth = cachedFramebufferWidth;
     header.framebufferHeight = cachedFramebufferHeight;
-    header.mainRenderpass.w = cachedFramebufferWidth;
-    header.mainRenderpass.h = cachedFramebufferHeight;
+    header.mainRenderpass.renderArea.z = cachedFramebufferWidth;
+    header.mainRenderpass.renderArea.w = cachedFramebufferHeight;
     cachedFramebufferWidth = 0;
     cachedFramebufferHeight = 0;
 
@@ -631,15 +732,16 @@ b8 recreateSwapchain(rendererBackend* backend){
 
     //Destroy framebuffers
     for (u32 i = 0; i < header.swapchain.imageCnt; ++i){
-        vulkanFramebufferDestroy(&header, &header.swapchain.framebuffers[i]);
+        vkDestroyFramebuffer(header.device.logicalDevice, header.worldFrameBuffers[i], header.allocator);
+        vkDestroyFramebuffer(header.device.logicalDevice, header.swapchain.framebuffers[i], header.allocator);
     }
 
-    header.mainRenderpass.x = 0;
-    header.mainRenderpass.y = 0;
-    header.mainRenderpass.w = header.framebufferWidth;
-    header.mainRenderpass.h = header.framebufferHeight;
+    header.mainRenderpass.renderArea.x = 0;
+    header.mainRenderpass.renderArea.y = 0;
+    header.mainRenderpass.renderArea.z = header.framebufferWidth;
+    header.mainRenderpass.renderArea.w = header.framebufferHeight;
 
-    regenerateFramebuffers(backend, &header.swapchain, &header.mainRenderpass);
+    regenerateFramebuffers();
 
     createCommandBuffers(backend);
 
@@ -727,7 +829,7 @@ void vulkanDestroyTexture(texture* texture){
 
 b8 vulkanCreateMaterial(material* m){
     if (m){
-        if (!vulkanShaderResourceAcquire(&header, &header.objectShader, m)){
+        if (!vulkanMaterialShaderResourceAcquire(&header, &header.materialShader, m)){
             FERROR("Couln't load shader resources.");
             return false;
         }
@@ -739,7 +841,7 @@ b8 vulkanCreateMaterial(material* m){
 void vulkanDestroyMaterial(material* m){
     if (m){
         if (m->id != INVALID_ID){
-            vulkanShaderResourceRelease(&header, &header.objectShader, m);
+            vulkanMaterialShaderResourceRelease(&header, &header.materialShader, m);
         }else{
             FWARN("vulkanDestroyMaterial called with id=INVALID_ID. Nothing was done. %s", m->name);
         }

@@ -8,13 +8,13 @@
 
 #define VULKAN_MAX_GEOMETRY_COUNT 4096
 
-#define VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT 2
-#define VULKAN_OBJECT_MAX_SAMPLER_COUNT 1
-#define VULKAN_OBJECT_MAX_OBJECT_COUNT 1024
+#define VULKAN_OVERALL_SHADER_DESCRIPTOR_COUNT 2
+#define VULKAN_OVERALL_MAX_SAMPLER_COUNT 1
+#define VULKAN_OVERALL_MAX_OBJECT_COUNT 1024
 #define MATERIAL_SHADER_STAGE_COUNT 2
 
 // Checks the given expression's return value is OK.
-#define VK_CHECK(expr)               \
+#define VULKANSUCCESS(expr)          \
     {                                \
         FASSERT(expr == VK_SUCCESS); \
     }
@@ -30,21 +30,18 @@ typedef enum vulkanRenderPassState {
 
 typedef struct vulkanRenderpass {
     VkRenderPass handle;
-    f32 x, y, w, h; //Area to render to
-    f32 r, g, b, a; //Color
+    vector4 renderArea;
+    vector4 clearColor;
 
     f32 depth;
     u32 stencil;
 
+    u8 clearFlags;
+    b8 hadPrev;
+    b8 hasNext;
+
     vulkanRenderPassState state;
 } vulkanRenderpass;
-
-typedef struct vulkanFramebuffer {
-    VkFramebuffer handle;
-    u32 attachmentCnt;
-    VkImageView* attachments;
-    vulkanRenderpass* renderpass;
-} vulkanFramebuffer;
 
 typedef struct vulkanSwapchainSupportInfo {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -110,14 +107,9 @@ typedef struct vulkanSwapchain {
     VkImageView* views;
     vulkanImage depthAttachment;
 
-    //Framebuffers used for on-screen rendering
-    vulkanFramebuffer* framebuffers;
+    //Framebuffers used for on-screen rendering, one per frame
+    VkFramebuffer framebuffers[3];
 } vulkanSwapchain;
-
-typedef struct vulkanFence {
-    VkFence handle;
-    b8 isSignaled;
-} vulkanFence;
 
 typedef struct vulkanShaderStage {
     VkShaderModule module;
@@ -128,6 +120,7 @@ typedef struct vulkanShaderStage {
 typedef struct vulkanPipelineConfig {
     /** @brief The name of the pipeline. Used primarily for debugging purposes. */
     char* name;
+    b8 shouldDepthTest;
     b8 isWireframe;
     /** @brief A pointer to the renderpass to associate with the pipeline. */
     vulkanRenderpass* renderpass;
@@ -201,16 +194,28 @@ typedef struct vulkanDescriptorState {
     u32 ids[3];
 } vulkanDescriptorState;
 
+//Global UBO
+typedef struct sceneUBO {
+    mat4 proj;
+    mat4 view;
+} sceneUBO;
 
-typedef struct vulkanObjectShaderState {
+typedef struct materialUBO {
+    vector4 diffuse_color;  // 16 bytes
+    vector4 v_reserved0;    // 16 bytes, reserved for future use
+    vector4 v_reserved1;    // 16 bytes, reserved for future use
+    vector4 v_reserved2;    // 16 bytes, reserved for future use
+} materialUBO;
+
+typedef struct vulkanOverallShaderState {
     // Per frame
     VkDescriptorSet descriptorSets[3];
 
     // Per descriptor
-    vulkanDescriptorState descriptorStates[VULKAN_OBJECT_SHADER_DESCRIPTOR_COUNT];
-} vulkanObjectShaderState;
+    vulkanDescriptorState descriptorStates[VULKAN_OVERALL_SHADER_DESCRIPTOR_COUNT];
+} vulkanOverallShaderState;
 
-typedef struct vulkanShader {
+typedef struct vulkanOverallShader {
     vulkanShaderStage stages[2];
     VkDescriptorPool globalDescriptorPool;
     VkDescriptorSetLayout globalDescriptorSetLayout;
@@ -231,13 +236,13 @@ typedef struct vulkanShader {
     // TODO: manage a free list of some kind here instead.
     u32 objectUniformBufferIdx;
 
-    mapType samplerTypes[VULKAN_OBJECT_MAX_SAMPLER_COUNT];
+    mapType samplerTypes[VULKAN_OVERALL_MAX_SAMPLER_COUNT];
 
     // TODO: make dynamic
-    vulkanObjectShaderState objectStates[VULKAN_OBJECT_MAX_OBJECT_COUNT];
+    vulkanOverallShaderState objectStates[VULKAN_OVERALL_MAX_OBJECT_COUNT];
 
     vulkanPipeline pipeline;
-} vulkanShader;
+} vulkanOverallShader;
 
 typedef struct vulkanTextureData {
     vulkanImage image;
@@ -251,6 +256,7 @@ typedef struct vulkanHeader{
     vulkanDevice device;
     vulkanSwapchain swapchain;
     vulkanRenderpass mainRenderpass;
+    vulkanRenderpass uiRenderpass;
 
     //Dino Array
     vulkanCommandBuffer* graphicsCommandBuffers;
@@ -262,10 +268,10 @@ typedef struct vulkanHeader{
     VkSemaphore* queueCompleteSemaphores;
 
     u32 inFlightFenceCnt;
-    vulkanFence* inFlightFences;
+    VkFence inFlightFences[2]; // one per frame - 1
 
-    //Holds pointers to fences which exist and are owned elsewhere
-    vulkanFence** imagesInFlight;
+    //Holds pointers to fences which exist and are owned elsewhere, one per frame
+    VkFence* imagesInFlight[3];
 
     u32 framebufferWidth;
     u32 framebufferHeight;
@@ -282,7 +288,6 @@ typedef struct vulkanHeader{
 
     b8 recreatingSwapchain;
 
-    vulkanShader objectShader;
 
     vulkanBuffer objectVertexBuffer;
     vulkanBuffer objectIndexBuffer;
@@ -292,6 +297,9 @@ typedef struct vulkanHeader{
 
     vulkanGeometryData geometries[VULKAN_MAX_GEOMETRY_COUNT];
 
+    // World Frame buffers, one per frame
+    VkFramebuffer worldFrameBuffers[3];
+
     i32 (*findMemoryIdx)(u32 typeFilter, u32 propertyFlags);
 
     #if defined(_DEBUG)
@@ -300,5 +308,6 @@ typedef struct vulkanHeader{
 
     f32 deltaTime;
 
-    vulkanShader materialShader;
+    vulkanOverallShader materialShader;
+    vulkanOverallShader uiShader;
 } vulkanHeader;

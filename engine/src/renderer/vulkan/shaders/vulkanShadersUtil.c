@@ -20,7 +20,7 @@ b8 createShaderModule(vulkanHeader* header, char* name, char* shaderType, VkShad
     outShaderStages[stageIdx].moduleCreateInfo.codeSize = binRes.dataSize;
     outShaderStages[stageIdx].moduleCreateInfo.pCode = (u32*)binRes.data;
 
-    VK_CHECK(vkCreateShaderModule(header->device.logicalDevice,
+    VULKANSUCCESS(vkCreateShaderModule(header->device.logicalDevice,
         &outShaderStages[stageIdx].moduleCreateInfo, header->allocator, &outShaderStages[stageIdx].module))
 
     resourceUnload(&binRes);

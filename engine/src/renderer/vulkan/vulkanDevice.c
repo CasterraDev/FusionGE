@@ -67,7 +67,7 @@ b8 doesDeviceMeetRequirements(VkPhysicalDevice device, VkSurfaceKHR surface, con
 
         //Present queue?
         VkBool32 supportsPresent = VK_FALSE;
-        VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supportsPresent));
+        VULKANSUCCESS(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &supportsPresent));
         if (supportsPresent) {
             outQueuesInfo->presentFamilyIdx = i;
         }
@@ -136,7 +136,7 @@ b8 createVulkanLogicalDevice(vulkanHeader* header){
     device_create_info.ppEnabledLayerNames = 0;
 
     // Create the device.
-    VK_CHECK(vkCreateDevice(
+    VULKANSUCCESS(vkCreateDevice(
         header->device.physicalDevice,
         &device_create_info,
         header->allocator,
@@ -168,7 +168,7 @@ b8 createVulkanLogicalDevice(vulkanHeader* header){
     poolCreateInfo.queueFamilyIndex = header->device.graphicsQueueIdx;
     poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    VK_CHECK(vkCreateCommandPool(header->device.logicalDevice, &poolCreateInfo, header->allocator, &header->device.graphicsCommandPool));
+    VULKANSUCCESS(vkCreateCommandPool(header->device.logicalDevice, &poolCreateInfo, header->allocator, &header->device.graphicsCommandPool));
     FINFO("Graphics command pool created.");
 
     return true;
@@ -184,7 +184,7 @@ b8 getVulkanDevice(vulkanHeader* header){
     }
 
     VkPhysicalDevice devices[32];
-    VK_CHECK(vkEnumeratePhysicalDevices(header->instance, &deviceCnt, devices));
+    VULKANSUCCESS(vkEnumeratePhysicalDevices(header->instance, &deviceCnt, devices));
 
     for (u32 i = 0; i < deviceCnt; ++i) {
         VkPhysicalDeviceProperties properties;
@@ -337,12 +337,12 @@ void vulkanDeviceQuerySwapchainSupport(
     VkSurfaceKHR surface,
     vulkanSwapchainSupportInfo* outSupportInfo) {
     // Surface capabilities
-    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+    VULKANSUCCESS(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         physicalDevice,
         surface,
         &outSupportInfo->capabilities));
     // Surface formats
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+    VULKANSUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(
         physicalDevice,
         surface,
         &outSupportInfo->formatCnt,
@@ -351,14 +351,14 @@ void vulkanDeviceQuerySwapchainSupport(
         if (!outSupportInfo->formats) {
             outSupportInfo->formats = fallocate(sizeof(VkSurfaceFormatKHR) * outSupportInfo->formatCnt, MEMORY_TAG_RENDERER);
         }
-        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+        VULKANSUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(
             physicalDevice,
             surface,
             &outSupportInfo->formatCnt,
             outSupportInfo->formats));
     }
     // Present modes
-    VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+    VULKANSUCCESS(vkGetPhysicalDeviceSurfacePresentModesKHR(
         physicalDevice,
         surface,
         &outSupportInfo->presentModeCnt,
@@ -367,7 +367,7 @@ void vulkanDeviceQuerySwapchainSupport(
         if (!outSupportInfo->presentModes) {
             outSupportInfo->presentModes = fallocate(sizeof(VkPresentModeKHR) * outSupportInfo->presentModeCnt, MEMORY_TAG_RENDERER);
         }
-        VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
+        VULKANSUCCESS(vkGetPhysicalDeviceSurfacePresentModesKHR(
             physicalDevice,
             surface,
             &outSupportInfo->presentModeCnt,

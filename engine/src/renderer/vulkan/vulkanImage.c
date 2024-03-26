@@ -38,7 +38,7 @@ void vulkanImageCreate(
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;          // TODO: Configurable sample count.
     imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;  // TODO: Configurable sharing mode.
 
-    VK_CHECK(vkCreateImage(header->device.logicalDevice, &imageCreateInfo, header->allocator, &outImg->handle));
+    VULKANSUCCESS(vkCreateImage(header->device.logicalDevice, &imageCreateInfo, header->allocator, &outImg->handle));
 
     // Query memory requirements.
     VkMemoryRequirements memory_requirements;
@@ -53,10 +53,10 @@ void vulkanImageCreate(
     VkMemoryAllocateInfo memory_allocate_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     memory_allocate_info.allocationSize = memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_type;
-    VK_CHECK(vkAllocateMemory(header->device.logicalDevice, &memory_allocate_info, header->allocator, &outImg->memory));
+    VULKANSUCCESS(vkAllocateMemory(header->device.logicalDevice, &memory_allocate_info, header->allocator, &outImg->memory));
 
     // Bind the memory
-    VK_CHECK(vkBindImageMemory(header->device.logicalDevice, outImg->handle, outImg->memory, 0));  // TODO: configurable memory offset.
+    VULKANSUCCESS(vkBindImageMemory(header->device.logicalDevice, outImg->handle, outImg->memory, 0));  // TODO: configurable memory offset.
 
     // Create view
     if (createView) {
@@ -82,7 +82,7 @@ void vulkanImageViewCreate(
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
     viewCreateInfo.subresourceRange.layerCount = 1;
 
-    VK_CHECK(vkCreateImageView(header->device.logicalDevice, &viewCreateInfo, header->allocator, &image->view));
+    VULKANSUCCESS(vkCreateImageView(header->device.logicalDevice, &viewCreateInfo, header->allocator, &image->view));
 }
 
 void vulkanImageDestroy(vulkanHeader* header, vulkanImage* image) {

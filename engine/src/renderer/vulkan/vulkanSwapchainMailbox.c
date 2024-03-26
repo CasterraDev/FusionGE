@@ -135,21 +135,21 @@ void create(vulkanHeader* header, u32 width, u32 height, vulkanSwapchain* swapch
     swapchainCreateInfo.clipped = VK_TRUE;
     swapchainCreateInfo.oldSwapchain = 0;
 
-    VK_CHECK(vkCreateSwapchainKHR(header->device.logicalDevice, &swapchainCreateInfo, header->allocator, &swapchain->handle));
+    VULKANSUCCESS(vkCreateSwapchainKHR(header->device.logicalDevice, &swapchainCreateInfo, header->allocator, &swapchain->handle));
 
     // Start with a zero frame index.
     header->currentFrame = 0;
 
     // Images
     swapchain->imageCnt = 0;
-    VK_CHECK(vkGetSwapchainImagesKHR(header->device.logicalDevice, swapchain->handle, &swapchain->imageCnt, 0));
+    VULKANSUCCESS(vkGetSwapchainImagesKHR(header->device.logicalDevice, swapchain->handle, &swapchain->imageCnt, 0));
     if (!swapchain->images) {
         swapchain->images = (VkImage*)fallocate(sizeof(VkImage) * swapchain->imageCnt, MEMORY_TAG_RENDERER);
     }
     if (!swapchain->views) {
         swapchain->views = (VkImageView*)fallocate(sizeof(VkImageView) * swapchain->imageCnt, MEMORY_TAG_RENDERER);
     }
-    VK_CHECK(vkGetSwapchainImagesKHR(header->device.logicalDevice, swapchain->handle, &swapchain->imageCnt, swapchain->images));
+    VULKANSUCCESS(vkGetSwapchainImagesKHR(header->device.logicalDevice, swapchain->handle, &swapchain->imageCnt, swapchain->images));
 
     // Views
     for (u32 i = 0; i < swapchain->imageCnt; ++i) {
@@ -163,7 +163,7 @@ void create(vulkanHeader* header, u32 width, u32 height, vulkanSwapchain* swapch
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        VK_CHECK(vkCreateImageView(header->device.logicalDevice, &viewInfo, header->allocator, &swapchain->views[i]));
+        VULKANSUCCESS(vkCreateImageView(header->device.logicalDevice, &viewInfo, header->allocator, &swapchain->views[i]));
     }
 
     // Depth resources

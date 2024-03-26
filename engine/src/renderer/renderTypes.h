@@ -4,24 +4,18 @@
 #include "math/matrixMath.h"
 #include "resources/resourcesTypes.h"
 
-typedef enum renderer_backend_API {
+typedef enum builtinRenderpass {
+    BUILTIN_RENDERPASS_WORLD,
+    BUILTIN_RENDERPASS_UI,
+} builtinRenderpass;
+
+typedef enum rendererBackendAPI {
     RENDERER_BACKEND_API_VULKAN,
     RENDERER_BACKEND_API_OPENGL,
     RENDERER_BACKEND_API_DIRECTX
-} renderer_backend_API;
+} rendererBackendAPI;
 
-//Global UBO
-typedef struct sceneUBO {
-    mat4 proj;
-    mat4 view;
-} sceneUBO;
 
-typedef struct materialUBO {
-    vector4 diffuse_color;  // 16 bytes
-    vector4 v_reserved0;    // 16 bytes, reserved for future use
-    vector4 v_reserved1;    // 16 bytes, reserved for future use
-    vector4 v_reserved2;    // 16 bytes, reserved for future use
-} materialUBO;
 
 typedef struct geometryRenderData {
     mat4 model;
@@ -38,10 +32,14 @@ typedef struct rendererBackend {
 
     void (*resized)(struct rendererBackend* backend, u16 width, u16 height);
     void (*updateGlobalState)(mat4 projection, mat4 view, vector3 viewPos, vector4 ambientColor, i32 mode);
+    void (*updateGlobalUIState)(mat4 projection, mat4 view, i32 mode);
     void (*drawGeometry)(geometryRenderData data);
 
     b8 (*beginFrame)(struct rendererBackend* backend, f32 deltaTime);
     b8 (*endFrame)(struct rendererBackend* backend, f32 deltaTime);
+    b8 (*beginRenderpass)(struct rendererBackend* backend, u8 renderpassID);
+    b8 (*endRenderpass)(struct rendererBackend* backend, u8 renderpassID);
+
     b8 (*createTexture)(const u8* pixels, texture* outTexture);
     void (*destroyTexture)(texture* texture);
 
@@ -55,6 +53,9 @@ typedef struct rendererBackend {
 typedef struct renderHeader {
     u32 geometryCnt;
     geometryRenderData* geometries;
+
+    u32 uiGeometryCnt;
+    geometryRenderData* uiGeometries;
     
     f32 deltaTime;
 } renderHeader;

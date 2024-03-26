@@ -12,7 +12,7 @@ void vulkanCommandBufferAllocate(vulkanHeader* header, VkCommandPool pool, b8 is
     allocateInfo.pNext = 0;
 
     outCommandBuffer->state = COMMAND_BUFFER_STATE_NOT_ALLOCATED;
-    VK_CHECK(vkAllocateCommandBuffers(header->device.logicalDevice, &allocateInfo, &outCommandBuffer->handle));
+    VULKANSUCCESS(vkAllocateCommandBuffers(header->device.logicalDevice, &allocateInfo, &outCommandBuffer->handle));
     outCommandBuffer->state = COMMAND_BUFFER_STATE_READY;
 }
 
@@ -35,12 +35,12 @@ void vulkanCommandBufferBegin(vulkanCommandBuffer* commandBuffer, b8 isSingleUse
         beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
     }
 
-    VK_CHECK(vkBeginCommandBuffer(commandBuffer->handle, &beginInfo));
+    VULKANSUCCESS(vkBeginCommandBuffer(commandBuffer->handle, &beginInfo));
     commandBuffer->state = COMMAND_BUFFER_STATE_RECORDING;
 }
 
 void vulkanCommandBufferEnd(vulkanCommandBuffer* commandBuffer){
-    VK_CHECK(vkEndCommandBuffer(commandBuffer->handle));
+    VULKANSUCCESS(vkEndCommandBuffer(commandBuffer->handle));
     commandBuffer->state = COMMAND_BUFFER_STATE_RECORDING_ENDED;
 }
 
@@ -63,9 +63,9 @@ void vulkanCommandBufferEndSingleUse(vulkanHeader* header, VkCommandPool pool, v
     VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer->handle;
-    VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, 0));
+    VULKANSUCCESS(vkQueueSubmit(queue, 1, &submitInfo, 0));
 
-    VK_CHECK(vkQueueWaitIdle(queue));
+    VULKANSUCCESS(vkQueueWaitIdle(queue));
 
     vulkanCommandBufferFree(header, pool, commandBuffer);
 }

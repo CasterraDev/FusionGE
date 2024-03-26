@@ -15,7 +15,7 @@ b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usag
     bufferCreateInfo.usage = usage;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VK_CHECK(vkCreateBuffer(header->device.logicalDevice, &bufferCreateInfo, header->allocator, &outBuffer->buffer));
+    VULKANSUCCESS(vkCreateBuffer(header->device.logicalDevice, &bufferCreateInfo, header->allocator, &outBuffer->buffer));
 
     //Get the buffers memory requirements
     VkMemoryRequirements memRequirements;
@@ -97,12 +97,12 @@ b8 vulkanBufferResize(vulkanHeader* header, u64 newSize, vulkanBuffer* buffer, V
 }
 
 void vulkanBufferBind(vulkanHeader* header, vulkanBuffer* buffer, u64 offset){
-    VK_CHECK(vkBindBufferMemory(header->device.logicalDevice, buffer->buffer, buffer->memoryDevice, offset));
+    VULKANSUCCESS(vkBindBufferMemory(header->device.logicalDevice, buffer->buffer, buffer->memoryDevice, offset));
 }
 
 void* vulkanBufferLockMemory(vulkanHeader* header, vulkanBuffer* buffer, u64 offset, u64 size, u32 flags){
     void* data;
-    VK_CHECK(vkMapMemory(header->device.logicalDevice, buffer->memoryDevice, offset, size, flags, &data));
+    VULKANSUCCESS(vkMapMemory(header->device.logicalDevice, buffer->memoryDevice, offset, size, flags, &data));
     return data;
 }
 void vulkanBufferUnlockMemory(vulkanHeader* header, vulkanBuffer* buffer){
@@ -111,7 +111,7 @@ void vulkanBufferUnlockMemory(vulkanHeader* header, vulkanBuffer* buffer){
 
 void vulkanBufferLoadData(vulkanHeader* header, vulkanBuffer* buffer, u64 offset, u64 size, u32 flags, const void* data){
     void* data2;
-    VK_CHECK(vkMapMemory(header->device.logicalDevice, buffer->memoryDevice, offset, size, flags, &data2));
+    VULKANSUCCESS(vkMapMemory(header->device.logicalDevice, buffer->memoryDevice, offset, size, flags, &data2));
     fcopyMemory(data2, data, size);
     vkUnmapMemory(header->device.logicalDevice, buffer->memoryDevice);
 }

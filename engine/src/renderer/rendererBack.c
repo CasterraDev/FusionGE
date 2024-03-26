@@ -2,15 +2,18 @@
 
 #include "vulkan/backend.h"
 
-b8 rendererCreate(renderer_backend_API api, rendererBackend* rb){
+b8 rendererCreate(rendererBackendAPI api, rendererBackend* rb){
     if (api == RENDERER_BACKEND_API_VULKAN){
         rb->init = vulkanInit;
         rb->shutdown = vulkanShutdown;
         rb->resized = vulkanResized;
         rb->updateGlobalState = vulkanUpdateGlobalState;
+        rb->updateGlobalUIState = vulkanUpdateUIState;
         rb->drawGeometry = vulkanDrawGeometry;
         rb->beginFrame = vulkanBeginFrame;
         rb->endFrame = vulkanEndFrame;
+        rb->beginRenderpass = vulkanBeginRenderpass;
+        rb->endRenderpass = vulkanEndRenderpass;
         rb->createTexture = vulkanCreateTexture;
         rb->destroyTexture = vulkanDestroyTexture;
         rb->createMaterial = vulkanCreateMaterial;
@@ -28,9 +31,12 @@ b8 rendererDestroy(rendererBackend* rb){
     rb->shutdown = 0;
     rb->resized = 0;
     rb->updateGlobalState = 0;
+    rb->updateGlobalUIState = 0;
     rb->drawGeometry = 0;
     rb->beginFrame = 0;
     rb->endFrame = 0;
+    rb->beginRenderpass = 0;
+    rb->endRenderpass = 0;
     rb->createTexture = 0;
     rb->destroyTexture = 0;
     rb->createMaterial = 0;

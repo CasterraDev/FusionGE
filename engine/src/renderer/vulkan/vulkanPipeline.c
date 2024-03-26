@@ -34,11 +34,13 @@ b8 vulkanPipelineCreate(vulkanHeader* header, vulkanPipelineConfig* config, vulk
 
     // Depth and stencil testing.
     VkPipelineDepthStencilStateCreateInfo depthStencil = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-    depthStencil.depthTestEnable = VK_TRUE;
-    depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-    depthStencil.depthBoundsTestEnable = VK_FALSE;
-    depthStencil.stencilTestEnable = VK_FALSE;
+    if (config->shouldDepthTest){
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+    }
 
     VkPipelineColorBlendAttachmentState colorBlendAttachmentState;
     fzeroMemory(&colorBlendAttachmentState, sizeof(VkPipelineColorBlendAttachmentState));
@@ -103,7 +105,7 @@ b8 vulkanPipelineCreate(vulkanHeader* header, vulkanPipelineConfig* config, vulk
     pipelineLayoutCreateInfo.setLayoutCount = config->descriptorSetLayoutCnt;
     pipelineLayoutCreateInfo.pSetLayouts = config->descriptorSetLayouts;
 
-    VK_CHECK(vkCreatePipelineLayout(header->device.logicalDevice, &pipelineLayoutCreateInfo, header->allocator, &outPipeline->pipelineLayout));
+    VULKANSUCCESS(vkCreatePipelineLayout(header->device.logicalDevice, &pipelineLayoutCreateInfo, header->allocator, &outPipeline->pipelineLayout));
 
     //TODO: look more into VkPipelineCache and maybe add one
 
@@ -117,14 +119,14 @@ b8 vulkanPipelineCreate(vulkanHeader* header, vulkanPipelineConfig* config, vulk
     gPipelineCreateInfo.pViewportState = &viewportState;
     gPipelineCreateInfo.pRasterizationState = &rasterizerCreateInfo;
     gPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
-    gPipelineCreateInfo.pDepthStencilState = &depthStencil;
+    gPipelineCreateInfo.pDepthStencilState = config->shouldDepthTest ? &depthStencil : 0;
     gPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
     gPipelineCreateInfo.pMultisampleState = &multisamplingCreateInfo;
     gPipelineCreateInfo.pTessellationState = 0;
 
     gPipelineCreateInfo.layout = outPipeline->pipelineLayout;
 
-    VK_CHECK(vkCreateGraphicsPipelines(header->device.logicalDevice, NULL, 1, &gPipelineCreateInfo, header->allocator, &outPipeline->handle));
+    VULKANSUCCESS(vkCreateGraphicsPipelines(header->device.logicalDevice, NULL, 1, &gPipelineCreateInfo, header->allocator, &outPipeline->handle));
 
     return true;
 }

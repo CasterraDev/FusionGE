@@ -14,7 +14,11 @@
 
 typedef struct rendererSystem{
     rendererBackend rb;
+    // Camera/World/Scene Projection
     mat4 projection;
+    // UI Projection
+    mat4 uiProjection;
+    mat4 uiView;
     u32 frameBufferWidth;
     u32 frameBufferHeight;
     f32 nearClip;
@@ -40,6 +44,8 @@ b8 rendererInit(u64* memoryRequirement, void* memoryState, const char* appName){
     systemPtr->nearClip = 0.1f;
     systemPtr->farClip = 1000.0f;
     systemPtr->projection = mat4Perspective(degToRad(45.0f), systemPtr->frameBufferWidth / (f32)systemPtr->frameBufferHeight, systemPtr->nearClip, systemPtr->farClip);
+    systemPtr->uiProjection = mat4Orthographic(0, systemPtr->frameBufferWidth, systemPtr->frameBufferHeight, 0, -100.0f, 100.0f); // Intentionally flipped on the y axis
+    systemPtr->uiView = mat4Inverse(mat4Identity());
 
     //Assign the pointer functions to the real functions
     if(!rendererCreate(RENDERER_BACKEND_API_VULKAN, &systemPtr->rb)){
@@ -73,6 +79,7 @@ void rendererShutdown(){
 void rendererOnResize(u16 width, u16 height){
     if (systemPtr){
         systemPtr->projection = mat4Perspective(degToRad(45.0f), width / (f32)height, systemPtr->nearClip, systemPtr->farClip);
+        systemPtr->uiProjection = mat4Orthographic(0, (f32)width, (f32)height, 0, -100.0f, 100.0f); // Intentionally flipped on the y axis
 	    systemPtr->rb.resized(&systemPtr->rb, width, height);
     }else{
         FWARN("Renderer backend does not exist to accept resize: %i %i", width, height);
@@ -83,6 +90,11 @@ b8 rendererDraw(renderHeader* renderHeader){
     //If beginFrame fails the app might be able to recover
     //and sometimes when we redo the swapchain we'll want it to fail
 	if (systemPtr->rb.beginFrame(&systemPtr->rb, renderHeader->deltaTime)){
+        if (!systemPtr->rb.beginRenderpass(&systemPtr->rb, BUILTIN_RENDERPASS_WORLD)){
+            FERROR("BeginRenderpass for BUILTIN_RENDERPASS_WORLD failed.");
+            return false;
+        }
+        // TEMP
         camera* cam = systemPtr->cam1;
         if (systemPtr->first){
             cam = systemPtr->cam1;
@@ -117,15 +129,35 @@ b8 rendererDraw(renderHeader* renderHeader){
         if (inputIsKeyDown('X')){
             cameraYaw(cam, -spd);
         }
+        // END TEMP
         systemPtr->rb.updateGlobalState(systemPtr->projection, cameraViewGet(cam), vec3Zero(), vec4One(), 0);
-        // static f32 angle = 0.01f;
-        // angle += 0.001f;
-        // quat rotation = quatFromAxisAngle(vec3Forward(), angle, false);
-        // mat4 model = quatToRotationMatrix(rotation, vec3Zero());
         
         u32 count = renderHeader->geometryCnt;
         for (u32 i = 0; i < count; i++){
             systemPtr->rb.drawGeometry(renderHeader->geometries[i]);
+        }
+
+        if (!systemPtr->rb.endRenderpass(&systemPtr->rb, BUILTIN_RENDERPASS_WORLD)){
+            FERROR("EndRenderpass for BUILTIN_RENDERPASS_WORLD failed.");
+            return false;
+        }
+
+        // UI Renderpass
+        if (!systemPtr->rb.beginRenderpass(&systemPtr->rb, BUILTIN_RENDERPASS_UI)){
+            FERROR("BeginRenderpass for BUILTIN_RENDERPASS_UI failed.");
+            return false;
+        }
+
+        systemPtr->rb.updateGlobalUIState(systemPtr->uiProjection, systemPtr->uiView, 0);
+
+        u32 uiCount = renderHeader->uiGeometryCnt;
+        for (u32 i = 0; i < uiCount; i++){
+            systemPtr->rb.drawGeometry(renderHeader->uiGeometries[i]);
+        }
+
+        if (!systemPtr->rb.endRenderpass(&systemPtr->rb, BUILTIN_RENDERPASS_UI)){
+            FERROR("EndRenderpass for BUILTIN_RENDERPASS_UI failed.");
+            return false;
         }
 
         //If endFrame fails the app is fucked
@@ -133,6 +165,8 @@ b8 rendererDraw(renderHeader* renderHeader){
             FERROR("Renderer Draw Frame Failed");
             return false;
         }
+        // TODO: Might be re adding the frame num. Check this
+        systemPtr->rb.frameNum++;
     }
     return true;
 }

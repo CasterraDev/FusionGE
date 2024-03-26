@@ -4,20 +4,18 @@
 void vulkanRenderpassCreate(
     vulkanHeader* header, 
     vulkanRenderpass* outRenderpass,
-    f32 x, f32 y, f32 w, f32 h,
-    f32 r, f32 g, f32 b, f32 a,
+    vector4 renderArea,
+    vector4 clearColor,
     f32 depth,
-    u32 stencil){
-    
-    outRenderpass->x = x;
-    outRenderpass->y = y;
-    outRenderpass->w = w;
-    outRenderpass->h = h;
-    
-    outRenderpass->r = r;
-    outRenderpass->g = g;
-    outRenderpass->b = b;
-    outRenderpass->a = a;
+    u32 stencil,
+    u8 clearFlags,
+    b8 hadPrev,
+    b8 hasNext){
+    outRenderpass->clearFlags = clearFlags;
+    outRenderpass->renderArea = renderArea;
+    outRenderpass->clearColor = clearColor;
+    outRenderpass->hadPrev = hadPrev;
+    outRenderpass->hasNext = hasNext;
 
     outRenderpass->depth = depth;
     outRenderpass->stencil = stencil;
@@ -26,21 +24,25 @@ void vulkanRenderpassCreate(
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     // Attachments TODO: make this configurable.
+    //TODO: Make attachments attach conditionally
+    u32 attachmentDescriptionCnt = 0;
     VkAttachmentDescription attachmentDescriptions[2];
 
     // Color attachment
+    b8 shouldClearColor = (outRenderpass->clearFlags & RENDERPASS_CLEAR_COLOR_BUFFER_FLAG) != 0;
     VkAttachmentDescription colorAttachment;
     colorAttachment.format = header->swapchain.imgFormat.format; // TODO: configurable
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.loadOp = shouldClearColor ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;      // Do not expect any particular layout before render pass starts.
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;  // Transitioned to after the render pass
+    colorAttachment.initialLayout = hadPrev ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;      // Do not expect any particular layout before render pass starts.
+    colorAttachment.finalLayout = hasNext ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;  // Transitioned to after the render pass
     colorAttachment.flags = 0;
 
-    attachmentDescriptions[0] = colorAttachment;
+    attachmentDescriptions[attachmentDescriptionCnt] = colorAttachment;
+    attachmentDescriptionCnt++;
 
     VkAttachmentReference colorAttachmentRef;
     colorAttachmentRef.attachment = 0;  // Attachment description array index
@@ -50,27 +52,34 @@ void vulkanRenderpassCreate(
     subpass.pColorAttachments = &colorAttachmentRef;
 
     // Depth attachment, if there is one
-    VkAttachmentDescription depthAttachment = {};
-    depthAttachment.format = header->device.depthFormat;
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    b8 shouldClearDepth = (outRenderpass->clearFlags & RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG) != 0;
+    if (shouldClearDepth){
+        VkAttachmentDescription depthAttachment = {};
+        depthAttachment.format = header->device.depthFormat;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = shouldClearDepth ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        
+        attachmentDescriptions[attachmentDescriptionCnt] = depthAttachment;
+        attachmentDescriptionCnt++;
 
-    attachmentDescriptions[1] = depthAttachment;
+        // Depth attachment reference
+        VkAttachmentReference depthAttachmentRef;
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    // Depth attachment reference
-    VkAttachmentReference depthAttachmentRef;
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+        // Depth stencil data.
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    }else{
+        fzeroMemory(&attachmentDescriptions[attachmentDescriptionCnt], sizeof(VkAttachmentDescription));
+        subpass.pDepthStencilAttachment = 0;
+    }
     // TODO: other attachment types (input, resolve, preserve)
-
-    // Depth stencil data.
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     // Input from a shader
     subpass.inputAttachmentCount = 0;
@@ -95,7 +104,7 @@ void vulkanRenderpassCreate(
 
     // Render pass create.
     VkRenderPassCreateInfo renderPassCreateInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-    renderPassCreateInfo.attachmentCount = 2;
+    renderPassCreateInfo.attachmentCount = attachmentDescriptionCnt;
     renderPassCreateInfo.pAttachments = attachmentDescriptions;
     renderPassCreateInfo.subpassCount = 1;
     renderPassCreateInfo.pSubpasses = &subpass;
@@ -104,7 +113,7 @@ void vulkanRenderpassCreate(
     renderPassCreateInfo.pNext = 0;
     renderPassCreateInfo.flags = 0;
 
-    VK_CHECK(vkCreateRenderPass(
+    VULKANSUCCESS(vkCreateRenderPass(
         header->device.logicalDevice,
         &renderPassCreateInfo,
         header->allocator,
@@ -126,22 +135,34 @@ void vulkanRenderpassBegin(
     VkRenderPassBeginInfo beginInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     beginInfo.renderPass = renderpass->handle;
     beginInfo.framebuffer = frameBuffer;
-    beginInfo.renderArea.offset.x = renderpass->x;
-    beginInfo.renderArea.offset.y = renderpass->y;
-    beginInfo.renderArea.extent.width = renderpass->w;
-    beginInfo.renderArea.extent.height = renderpass->h;
+    beginInfo.renderArea.offset.x = renderpass->renderArea.x;
+    beginInfo.renderArea.offset.y = renderpass->renderArea.y;
+    beginInfo.renderArea.extent.width = renderpass->renderArea.z;
+    beginInfo.renderArea.extent.height = renderpass->renderArea.w;
+
+    beginInfo.clearValueCount = 0;
+    beginInfo.pClearValues = 0;
 
     VkClearValue clearVals[2];
     fzeroMemory(clearVals, sizeof(VkClearValue) * 2);
-    clearVals[0].color.float32[0] = renderpass->r;
-    clearVals[0].color.float32[1] = renderpass->g;
-    clearVals[0].color.float32[2] = renderpass->b;
-    clearVals[0].color.float32[3] = renderpass->a;
-    clearVals[1].depthStencil.depth = renderpass->depth;
-    clearVals[1].depthStencil.stencil = renderpass->stencil;
+    b8 shouldClearColor = (renderpass->clearFlags & RENDERPASS_CLEAR_COLOR_BUFFER_FLAG) != 0;
+    if (shouldClearColor){
+        fcopyMemory(clearVals[beginInfo.clearValueCount].color.float32, renderpass->clearColor.elements, sizeof(f32) * 4);
+        beginInfo.clearValueCount++;
+    }
 
-    beginInfo.clearValueCount = 2;
-    beginInfo.pClearValues = clearVals;
+    b8 shouldClearDepth = (renderpass->clearFlags & RENDERPASS_CLEAR_DEPTH_BUFFER_FLAG) != 0;
+    if (shouldClearDepth){
+        fcopyMemory(clearVals[beginInfo.clearValueCount].color.float32, renderpass->clearColor.elements, sizeof(f32) * 4);
+        clearVals[beginInfo.clearValueCount].depthStencil.depth = renderpass->depth;
+
+        b8 shouldClearStencil = (renderpass->clearFlags & RENDERPASS_CLEAR_STENCIL_BUFFER_FLAG) != 0;
+        clearVals[beginInfo.clearValueCount].depthStencil.stencil = shouldClearStencil ? renderpass->stencil : 0;
+
+        beginInfo.clearValueCount++;
+    }
+
+    beginInfo.pClearValues = beginInfo.clearValueCount > 0 ? clearVals : 0;
 
     vkCmdBeginRenderPass(commandBuffer->handle, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
     commandBuffer->state = COMMAND_BUFFER_STATE_IN_RENDER_PASS;
