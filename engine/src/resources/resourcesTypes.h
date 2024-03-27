@@ -112,6 +112,11 @@ typedef struct textureMap {
     void* rendererData;
 } textureMap;
 
+typedef enum MaterialTypes {
+    MATERIAL_TYPE_WORLD,
+    MATERIAL_TYPE_UI
+} MaterialTypes;
+
 #define DEFAULT_MATERIAL_NAME "Fusion_Default_Material"
 
 typedef struct material {
@@ -125,6 +130,7 @@ typedef struct material {
     u32 shaderID;
     /** @brief how many things are referencing this material. */
     u64 refCnt;
+    MaterialTypes type;
     
     //Dino
     textureMap* texMaps;

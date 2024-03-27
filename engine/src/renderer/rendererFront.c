@@ -187,8 +187,8 @@ void rendererDestroyMaterial(struct material* m){
     systemPtr->rb.destroyMaterial(m);
 }
 
-b8 rendererCreateGeometry(geometry* geometry, u32 vertexCnt, const vertex3D* vertices, u32 indexCnt, const u32* indices) {
-    return systemPtr->rb.createGeometry(geometry, vertexCnt, vertices, indexCnt, indices);
+b8 rendererCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices) {
+    return systemPtr->rb.createGeometry(geometry, vertexStride, vertexCnt, vertices, indexStride, indexCnt, indices);
 }
 
 void rendererDestroyGeometry(geometry* geometry) {

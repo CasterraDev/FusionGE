@@ -173,7 +173,7 @@ typedef struct vulkanBuffer {
 
 typedef struct vulkanGeometryBufferInfo {
     u32 count;
-    u32 size;
+    u32 stride;
     u32 bufferOffset;
 } vulkanGeometryBufferInfo;
 

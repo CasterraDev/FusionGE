@@ -60,6 +60,7 @@ typedef struct appState {
 
     // TODO: temp
     geometry* testGeometry;
+    geometry* testUIGeometry;
     // TODO: end temp
 } appState;
 
@@ -234,8 +235,45 @@ b8 appCreate(game* gameInst) {
     ffree(g_config.vertices, sizeof(vertex3D) * g_config.vertexCnt, MEMORY_TAG_ARRAY);
     ffree(g_config.indices, sizeof(u32) * g_config.indexCnt, MEMORY_TAG_ARRAY);
 
-    // Load up default geometry.
-    //app_state->test_geometry = geometry_system_get_default();
+    // Load up some test UI geometry.
+    geometryConfig ui_config;
+    ui_config.vertexStride = sizeof(vertex2D);
+    ui_config.vertexCnt = 4;
+    ui_config.indexStride = sizeof(u32);
+    ui_config.indexCnt = 6;
+    strNCpy(ui_config.materialName, "uiMaterial", MATERIAL_MAX_LENGTH);
+    strNCpy(ui_config.name, "test_ui_geometry", GEOMETRY_NAME_MAX_LENGTH);
+
+    const f32 f = 512.0f;
+    vertex2D uiverts [4];
+    uiverts[0].position.x = 0.0f;  // 0    3
+    uiverts[0].position.y = 0.0f;  //
+    uiverts[0].texcoord.x = 0.0f;  //
+    uiverts[0].texcoord.y = 0.0f;  // 2    1
+
+    uiverts[1].position.y = f;
+    uiverts[1].position.x = f;
+    uiverts[1].texcoord.x = 1.0f;
+    uiverts[1].texcoord.y = 1.0f;
+
+    uiverts[2].position.x = 0.0f;
+    uiverts[2].position.y = f;
+    uiverts[2].texcoord.x = 0.0f;
+    uiverts[2].texcoord.y = 1.0f;
+
+    uiverts[3].position.x = f;
+    uiverts[3].position.y = 0.0;
+    uiverts[3].texcoord.x = 1.0f;
+    uiverts[3].texcoord.y = 0.0f;
+    ui_config.vertices = uiverts;
+
+    // Indices - counter-clockwise
+    u32 uiindices[6] = {2, 1, 0, 3, 0, 1};
+    ui_config.indices = uiindices;
+
+    // Get UI geometry from config.
+    appstate->testUIGeometry = geometrySystemAcquireFromConfig(ui_config, true);
+
     // TODO: end temp 
 
 
@@ -294,8 +332,12 @@ b8 appRun() {
             header.geometryCnt = 1;
             header.geometries = &testGeoHeader;
 
-            header.uiGeometryCnt = 0;
-            header.uiGeometries = 0;
+            geometryRenderData testUIRender;
+            testUIRender.geometry = appstate->testUIGeometry;
+            testUIRender.model = mat4Translation((vector3){0, 0, 0});
+            header.uiGeometryCnt = 1;
+            header.uiGeometries = &testUIRender;
+
             // TODO: end temp
             rendererDraw(&header);
 

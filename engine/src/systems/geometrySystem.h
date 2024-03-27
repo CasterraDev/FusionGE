@@ -11,15 +11,15 @@ typedef struct geometrySystemConfig {
 } geometrySystemConfig;
 
 typedef struct geometryConfig {
+    u32 vertexStride;
     u32 vertexCnt;
-    vertex3D* vertices;
+    void* vertices;
+    u32 indexStride;
     u32 indexCnt;
-    u32* indices;
+    void* indices;
     char name[GEOMETRY_NAME_MAX_LENGTH];
     char materialName[GEOMETRY_NAME_MAX_LENGTH];
 } geometryConfig;
-
-#define DEFAULTGEOMETRYNAME "default"
 
 b8 geometrySystemInitialize(u64* memoryRequirement, void* state, geometrySystemConfig config);
 void geometrySystemShutdown(void* state);
@@ -54,6 +54,13 @@ void geometrySystemRelease(geometry* geometry);
  * @return A pointer to the default geometry. 
  */
 geometry* geometrySystemGetDefault();
+
+/**
+ * @brief Obtains a pointer to the default geometry2D.
+ * 
+ * @return A pointer to the default geometry2D. 
+ */
+geometry* geometrySystemGetDefault2D();
 
 /**
  * @brief Generates configuration for plane geometries given the provided parameters.

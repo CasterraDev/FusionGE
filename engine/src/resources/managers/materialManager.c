@@ -60,6 +60,15 @@ b8 materialManagerLoad(resourceManager* self, const char* name, resource* outRes
             if (!strToVec4(tval, &resmat->diffuseColor)) {
                 FWARN("Error parsing diffuseColor in file '%s'. Using default of white instead.", fileLocation);
             }
+        } else if (strEqualI(tvar, "Type")){
+            if (strEqualI(tval, "World")){
+                resmat->type = MATERIAL_TYPE_WORLD;
+            } else if (strEqualI(tval, "UI")){
+                resmat->type = MATERIAL_TYPE_UI;
+            } else {
+                FWARN("Material file: %s. Does not have variable `type`. Defaulting to world aka MATERIAL_TYPE_WORLD", name);
+                resmat->type = MATERIAL_TYPE_WORLD;
+            }
         }
     }
     fsClose(&f);

@@ -16,6 +16,7 @@ typedef struct geometrySystemState {
     geometrySystemConfig config;
 
     geometry defaultGeometry;
+    geometry defaultGeometry2D;
 
     // Array of registered meshes.
     geometryReference* registeredGeometries;
@@ -23,7 +24,7 @@ typedef struct geometrySystemState {
 
 static geometrySystemState* systemPtr = 0;
 
-b8 createDefaultGeometry(geometrySystemState* state);
+b8 createDefaultGeometries(geometrySystemState* state);
 b8 createGeometry(geometrySystemState* state, geometryConfig config, geometry* g);
 void destroyGeometry(geometrySystemState* state, geometry* g);
 
@@ -57,7 +58,7 @@ b8 geometrySystemInitialize(u64* memoryRequirement, void* state, geometrySystemC
         systemPtr->registeredGeometries[i].geometry.generation = INVALID_ID;
     }
 
-    if (!createDefaultGeometry(systemPtr)) {
+    if (!createDefaultGeometries(systemPtr)) {
         FFATAL("Failed to create default geometry. Application cannot continue.");
         return false;
     }
@@ -141,9 +142,18 @@ geometry* geometrySystemGetDefault() {
     return 0;
 }
 
+geometry* geometrySystemGetDefault2D() {
+    if (systemPtr) {
+        return &systemPtr->defaultGeometry2D;
+    }
+
+    FFATAL("geometrySystemGetDefault2D called before system was initialized. Returning nullptr.");
+    return 0;
+}
+
 b8 createGeometry(geometrySystemState* state, geometryConfig config, geometry* g) {
     // Send the geometry off to the renderer to be uploaded to the GPU.
-    if (!rendererCreateGeometry(g, config.vertexCnt, config.vertices, config.indexCnt, config.indices)) {
+    if (!rendererCreateGeometry(g, config.vertexStride, config.vertexCnt, config.vertices, config.indexStride, config.indexCnt, config.indices)) {
         // Invalidate the entry.
         state->registeredGeometries[g->id].referenceCount = 0;
         state->registeredGeometries[g->id].autoRelease = false;
@@ -180,7 +190,7 @@ void destroyGeometry(geometrySystemState* state, geometry* g) {
     }
 }
 
-b8 createDefaultGeometry(geometrySystemState* state) {
+b8 createDefaultGeometries(geometrySystemState* state) {
     vertex3D verts[4];
     fzeroMemory(verts, sizeof(vertex3D) * 4);
 
@@ -209,13 +219,48 @@ b8 createDefaultGeometry(geometrySystemState* state) {
     u32 indices[6] = {0, 1, 2, 0, 3, 1};
 
     // Send the geometry off to the renderer to be uploaded to the GPU.
-    if (!rendererCreateGeometry(&state->defaultGeometry, 4, verts, 6, indices)) {
+    if (!rendererCreateGeometry(&state->defaultGeometry, sizeof(vertex3D), 4, verts, sizeof(u32), 6, indices)) {
         FFATAL("Failed to create default geometry. Application cannot continue.");
         return false;
     }
 
     // Acquire the default material.
     state->defaultGeometry.material = materialSystemGetDefault();
+
+    vertex2D verts2D[4];
+    fzeroMemory(verts2D, sizeof(vertex2D) * 4);
+
+    verts2D[0].position.x = -0.5 * f;  // 0    3
+    verts2D[0].position.y = -0.5 * f;  //
+    verts2D[0].texcoord.x = 0.0f;      //
+    verts2D[0].texcoord.y = 0.0f;      // 2    1
+
+    verts2D[1].position.y = 0.5 * f;
+    verts2D[1].position.x = 0.5 * f;
+    verts2D[1].texcoord.x = 1.0f;
+    verts2D[1].texcoord.y = 1.0f;
+
+    verts2D[2].position.x = -0.5 * f;
+    verts2D[2].position.y = 0.5 * f;
+    verts2D[2].texcoord.x = 0.0f;
+    verts2D[2].texcoord.y = 1.0f;
+
+    verts2D[3].position.x = 0.5 * f;
+    verts2D[3].position.y = -0.5 * f;
+    verts2D[3].texcoord.x = 1.0f;
+    verts2D[3].texcoord.y = 0.0f;
+
+    // Indices (Counter-Clockwise)
+    u32 indices2D[6] = {2, 1, 0, 3, 0, 1};
+
+    // Send the geometry off to the renderer to be uploaded to the GPU.
+    if (!rendererCreateGeometry(&state->defaultGeometry2D, sizeof(vertex2D), 4, verts2D, sizeof(u32), 6, indices2D)) {
+        FFATAL("Failed to create default geometry2D. Application cannot continue.");
+        return false;
+    }
+
+    // Acquire the default material.
+    state->defaultGeometry2D.material = materialSystemGetDefault();
 
     return true;
 }
@@ -248,8 +293,10 @@ geometryConfig geometrySystemGeneratePlaneConfig(f32 width, f32 height, u32 xSeg
     }
 
     geometryConfig config;
+    config.vertexStride = sizeof(vertex3D);
     config.vertexCnt = xSegmentCount * ySegmentCount * 4;  // 4 verts per segment
     config.vertices = fallocate(sizeof(vertex3D) * config.vertexCnt, MEMORY_TAG_ARRAY);
+    config.indexStride = sizeof(u32);
     config.indexCnt = xSegmentCount * ySegmentCount * 6;  // 6 indices per segment
     config.indices = fallocate(sizeof(u32) * config.indexCnt, MEMORY_TAG_ARRAY);
 
@@ -271,10 +318,10 @@ geometryConfig geometrySystemGeneratePlaneConfig(f32 width, f32 height, u32 xSeg
             f32 maxUvy = ((y + 1) / (f32)ySegmentCount) * tileY;
 
             u32 vOffset = ((y * xSegmentCount) + x) * 4;
-            vertex3D* v0 = &config.vertices[vOffset + 0];
-            vertex3D* v1 = &config.vertices[vOffset + 1];
-            vertex3D* v2 = &config.vertices[vOffset + 2];
-            vertex3D* v3 = &config.vertices[vOffset + 3];
+            vertex3D* v0 = &((vertex3D*)config.vertices)[vOffset + 0];
+            vertex3D* v1 = &((vertex3D*)config.vertices)[vOffset + 1];
+            vertex3D* v2 = &((vertex3D*)config.vertices)[vOffset + 2];
+            vertex3D* v3 = &((vertex3D*)config.vertices)[vOffset + 3];
 
             v0->position.x = minX;
             v0->position.y = minY;
@@ -298,19 +345,19 @@ geometryConfig geometrySystemGeneratePlaneConfig(f32 width, f32 height, u32 xSeg
 
             // Generate indices
             u32 iOffset = ((y * xSegmentCount) + x) * 6;
-            config.indices[iOffset + 0] = vOffset + 0;
-            config.indices[iOffset + 1] = vOffset + 1;
-            config.indices[iOffset + 2] = vOffset + 2;
-            config.indices[iOffset + 3] = vOffset + 0;
-            config.indices[iOffset + 4] = vOffset + 3;
-            config.indices[iOffset + 5] = vOffset + 1;
+            ((u32*)config.indices)[iOffset + 0] = vOffset + 0;
+            ((u32*)config.indices)[iOffset + 1] = vOffset + 1;
+            ((u32*)config.indices)[iOffset + 2] = vOffset + 2;
+            ((u32*)config.indices)[iOffset + 3] = vOffset + 0;
+            ((u32*)config.indices)[iOffset + 4] = vOffset + 3;
+            ((u32*)config.indices)[iOffset + 5] = vOffset + 1;
         }
     }
 
     if (name && strLength(name) > 0) {
         strNCpy(config.name, name, GEOMETRY_NAME_MAX_LENGTH);
     } else {
-        strNCpy(config.name, DEFAULTGEOMETRYNAME, GEOMETRY_NAME_MAX_LENGTH);
+        strNCpy(config.name, DEFAULT_GEOMETRY_NAME, GEOMETRY_NAME_MAX_LENGTH);
     }
 
     if (materialName && strLength(materialName) > 0) {

@@ -23,5 +23,5 @@ void vulkanDestroyTexture(struct texture* texture);
 b8 vulkanCreateMaterial(struct material* m);
 void vulkanDestroyMaterial(struct material* m);
 
-b8 vulkanCreateGeometry(struct geometry* g, u32 vertexCnt, const vertex3D* vertices, u32 indicesCnt, const u32* indices);
+b8 vulkanCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices);
 void vulkanDestroyGeometry(struct geometry* g);

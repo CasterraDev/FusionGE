@@ -17,6 +17,6 @@ void rendererDestroyTexture(struct texture* texture);
 b8 rendererCreateMaterial(struct material* m);
 void rendererDestroyMaterial(struct material* m);
 
-b8 rendererCreateGeometry(geometry* geometry, u32 vertexCnt, const vertex3D* vertices, u32 indexCnt, const u32* indices);
+b8 rendererCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices);
 
 void rendererDestroyGeometry(geometry* geometry);

@@ -296,7 +296,7 @@ void vulkanShutdown(struct rendererBackend* backend){
     vulkanBufferDestroy(&header, &header.objectVertexBuffer);
     vulkanBufferDestroy(&header, &header.objectIndexBuffer);
 
-    vulkanMaterialShaderDestroy(&header, &header.uiShader);
+    vulkanUIShaderDestroy(&header, &header.uiShader);
     vulkanMaterialShaderDestroy(&header, &header.materialShader);
 
     //Sync Objects
@@ -391,12 +391,26 @@ void vulkanUpdateUIState(mat4 projection, mat4 view, i32 mode){
 void vulkanDrawGeometry(geometryRenderData data){
     vulkanGeometryData* bd = &header.geometries[data.geometry->internalID];
     vulkanCommandBuffer* cb = &header.graphicsCommandBuffers[header.imageIdx];
-    vulkanMaterialShaderUse(&header, &header.materialShader);
-    vulkanMaterialShaderSetModel(&header, &header.materialShader, data.model);
+    //vulkanMaterialShaderUse(&header, &header.materialShader);
+
+    material* m = 0;
     if (data.geometry->material){
-        vulkanMaterialShaderApplyMaterial(&header, &header.materialShader, data.geometry->material);
+        m = data.geometry->material;
     }else{
-        vulkanMaterialShaderApplyMaterial(&header, &header.materialShader, materialSystemGetDefault());
+        m = materialSystemGetDefault();
+    }
+
+    switch (m->type){
+        case MATERIAL_TYPE_WORLD: {
+            vulkanMaterialShaderSetModel(&header, &header.materialShader, data.model);
+            vulkanMaterialShaderApplyMaterial(&header, &header.materialShader, m);
+            break;
+        }
+        case MATERIAL_TYPE_UI: {
+            vulkanUIShaderSetModel(&header, &header.uiShader, data.model);
+            vulkanUIShaderApplyMaterial(&header, &header.uiShader, m);
+            break;
+        }
     }
 
 
@@ -481,6 +495,8 @@ b8 vulkanBeginFrame(struct rendererBackend* backend, f32 deltaTime){
 
     header.mainRenderpass.renderArea.z = header.framebufferWidth;
     header.mainRenderpass.renderArea.w = header.framebufferHeight;
+    header.uiRenderpass.renderArea.z = header.framebufferWidth;
+    header.uiRenderpass.renderArea.w = header.framebufferHeight;
 
     return true;
 }
@@ -829,9 +845,19 @@ void vulkanDestroyTexture(texture* texture){
 
 b8 vulkanCreateMaterial(material* m){
     if (m){
-        if (!vulkanMaterialShaderResourceAcquire(&header, &header.materialShader, m)){
-            FERROR("Couln't load shader resources.");
-            return false;
+        switch (m->type){
+            case MATERIAL_TYPE_WORLD: {
+                if (!vulkanMaterialShaderResourceAcquire(&header, &header.materialShader, m)){
+                    FERROR("Couln't load shader Material resources.");
+                    return false;
+                }
+            }
+            case MATERIAL_TYPE_UI: {
+                if (!vulkanUIShaderResourceAcquire(&header, &header.uiShader, m)){
+                    FERROR("Couln't load shader UI resources.");
+                    return false;
+                }
+            }
         }
         return true;
     }
@@ -841,7 +867,14 @@ b8 vulkanCreateMaterial(material* m){
 void vulkanDestroyMaterial(material* m){
     if (m){
         if (m->id != INVALID_ID){
-            vulkanMaterialShaderResourceRelease(&header, &header.materialShader, m);
+            switch (m->type){
+                case MATERIAL_TYPE_WORLD: {
+                    vulkanMaterialShaderResourceRelease(&header, &header.materialShader, m);
+                }
+                case MATERIAL_TYPE_UI: {
+                    vulkanUIShaderResourceRelease(&header, &header.uiShader, m);
+                }
+            }
         }else{
             FWARN("vulkanDestroyMaterial called with id=INVALID_ID. Nothing was done. %s", m->name);
         }
@@ -854,19 +887,19 @@ void freeDataInfo(vulkanBuffer* buffer, u64 offset, u64 size) {
     // TODO: update free list with this range being free.
 }
 
-b8 vulkanCreateGeometry(struct geometry* g, u32 vertexCnt, const vertex3D* vertices, u32 indicesCnt, const u32* indices){
+b8 vulkanCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices){
     if (!vertexCnt || !vertices) {
         FERROR("vulkanCreateGeometry requires vertex data, and none was supplied. vertexCnt=%d, vertices=%p", vertexCnt, vertices);
         return false;
     }
 
     // Check if this is a re-upload. If it is, need to free old data afterward.
-    b8 firstLoad = g->internalID == INVALID_ID;
+    b8 firstLoad = geometry->internalID == INVALID_ID;
     vulkanGeometryData old;
 
     vulkanGeometryData* internalData = 0;
     if (!firstLoad) {
-        internalData = &header.geometries[g->internalID];
+        internalData = &header.geometries[geometry->internalID];
 
         // Take a copy of the old buffer info.
         old.indexBufferInfo = internalData->indexBufferInfo;
@@ -876,7 +909,7 @@ b8 vulkanCreateGeometry(struct geometry* g, u32 vertexCnt, const vertex3D* verti
         for (u32 i = 0; i < VULKAN_MAX_GEOMETRY_COUNT; ++i) {
             if (header.geometries[i].id == INVALID_ID) {
                 // Found a free index.
-                g->internalID = i;
+                geometry->internalID = i;
                 header.geometries[i].id = i;
                 internalData = &header.geometries[i];
                 break;
@@ -894,19 +927,21 @@ b8 vulkanCreateGeometry(struct geometry* g, u32 vertexCnt, const vertex3D* verti
     // Vertex data.
     internalData->vertexBufferInfo.bufferOffset = header.geometryVertexOffset;
     internalData->vertexBufferInfo.count = vertexCnt;
-    internalData->vertexBufferInfo.size = sizeof(vertex3D) * vertexCnt;
-    uploadDataViaStagingBuffer(&header, pool, 0, queue, &header.objectVertexBuffer, internalData->vertexBufferInfo.bufferOffset, internalData->vertexBufferInfo.size, vertices);
+    internalData->vertexBufferInfo.stride = vertexStride;
+    u32 totalSize = vertexCnt * vertexStride;
+    uploadDataViaStagingBuffer(&header, pool, 0, queue, &header.objectVertexBuffer, internalData->vertexBufferInfo.bufferOffset, totalSize, vertices);
     // TODO: should maintain a free list instead of this.
-    header.geometryVertexOffset += internalData->vertexBufferInfo.size;
+    header.geometryVertexOffset += totalSize;
 
     // Index data, if applicable
-    if (indicesCnt && indices) {
+    if (indexCnt && indices) {
         internalData->indexBufferInfo.bufferOffset = header.geometryIndexOffset;
-        internalData->indexBufferInfo.count = indicesCnt;
-        internalData->indexBufferInfo.size = sizeof(u32) * indicesCnt;
-        uploadDataViaStagingBuffer(&header, pool, 0, queue, &header.objectIndexBuffer, internalData->indexBufferInfo.bufferOffset, internalData->indexBufferInfo.size, indices);
+        internalData->indexBufferInfo.count = indexCnt;
+        internalData->indexBufferInfo.stride = indexStride;
+        totalSize = indexCnt * indexStride;
+        uploadDataViaStagingBuffer(&header, pool, 0, queue, &header.objectIndexBuffer, internalData->indexBufferInfo.bufferOffset, totalSize, indices);
         // TODO: should maintain a free list instead of this.
-        header.geometryIndexOffset += internalData->indexBufferInfo.size;
+        header.geometryIndexOffset += totalSize;
     }
 
     if (internalData->generation == INVALID_ID) {
@@ -917,11 +952,11 @@ b8 vulkanCreateGeometry(struct geometry* g, u32 vertexCnt, const vertex3D* verti
 
     if (!firstLoad) {
         // Free vertex data
-        freeDataInfo(&header.objectVertexBuffer, old.vertexBufferInfo.bufferOffset, old.vertexBufferInfo.size);
+        freeDataInfo(&header.objectVertexBuffer, old.vertexBufferInfo.bufferOffset, old.vertexBufferInfo.stride * old.vertexBufferInfo.count);
 
         // Free index data, if applicable
-        if (old.indexBufferInfo.size > 0) {
-            freeDataInfo(&header.objectIndexBuffer, old.indexBufferInfo.bufferOffset, old.indexBufferInfo.size);
+        if (old.indexBufferInfo.stride > 0) {
+            freeDataInfo(&header.objectIndexBuffer, old.indexBufferInfo.bufferOffset, old.indexBufferInfo.stride * old.indexBufferInfo.count);
         }
     }
 
@@ -932,10 +967,10 @@ void vulkanDestroyGeometry(struct geometry* g){
     if (g && g->internalID != INVALID_ID){
         vkDeviceWaitIdle(header.device.logicalDevice);
         // Free the vertex info buffers
-        freeDataInfo(&header.objectVertexBuffer, header.geometries[g->internalID].vertexBufferInfo.bufferOffset, header.geometries[g->internalID].vertexBufferInfo.size);
+        freeDataInfo(&header.objectVertexBuffer, header.geometries[g->internalID].vertexBufferInfo.bufferOffset, header.geometries[g->internalID].vertexBufferInfo.stride * header.geometries[g->internalID].vertexBufferInfo.count);
         // If indexes are used free them
-        if (header.geometries[g->internalID].indexBufferInfo.size > 0){
-            freeDataInfo(&header.objectVertexBuffer, header.geometries[g->internalID].indexBufferInfo.bufferOffset, header.geometries[g->internalID].indexBufferInfo.size);
+        if (header.geometries[g->internalID].indexBufferInfo.stride > 0){
+            freeDataInfo(&header.objectVertexBuffer, header.geometries[g->internalID].indexBufferInfo.bufferOffset, header.geometries[g->internalID].indexBufferInfo.stride * header.geometries[g->internalID].indexBufferInfo.count);
         }
 
         // Zero the memory and Reset the id/generation so it can be reused

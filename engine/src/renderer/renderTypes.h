@@ -46,7 +46,7 @@ typedef struct rendererBackend {
     b8 (*createMaterial)(material* m);
     void (*destroyMaterial)(material* m);
 
-    b8 (*createGeometry)(geometry* geometry, u32 vertexCnt, const vertex3D* vertices, u32 indexCnt, const u32* indices);
+    b8 (*createGeometry)(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices);
     void (*destroyGeometry)(geometry* geometry);
 } rendererBackend;
 

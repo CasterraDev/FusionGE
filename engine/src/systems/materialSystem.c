@@ -68,6 +68,7 @@ b8 materialSystemCreateDefault(){
     fzeroMemory(&systemPtr->defaultMaterial, sizeof(material));
     systemPtr->defaultMaterial.id = INVALID_ID;
     systemPtr->defaultMaterial.generation = INVALID_ID;
+    systemPtr->defaultMaterial.type = MATERIAL_TYPE_WORLD;
     systemPtr->defaultMaterial.diffuseColor = vec4One(); //White
     systemPtr->defaultMaterial.diffuseMap.type = TEXTURE_USE_MAP_DIFFUSE;
     systemPtr->defaultMaterial.diffuseMap.texture = textureSystemGetDefault();

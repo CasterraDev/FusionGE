@@ -148,7 +148,7 @@ b8 vulkanUIShaderCreate(vulkanHeader* header, vulkanOverallShader* outShader){
     config.name = "UI Graphics Pipeline";
     config.attrCnt = ATTRIBUTE_COUNT;
     config.attributes = attrDescs;
-    config.renderpass = &header->mainRenderpass;
+    config.renderpass = &header->uiRenderpass;
     config.scissor = scissor;
     config.viewport = viewport;
     config.stride = sizeof(vertex2D);
@@ -213,8 +213,8 @@ void vulkanUIShaderDestroy(vulkanHeader* header, vulkanOverallShader* shader){
     vkDestroyDescriptorSetLayout(header->device.logicalDevice, shader->globalDescriptorSetLayout, header->allocator);
 
     for (u32 i = 0; i < 2; i++){
-        vkDestroyShaderModule(header->device.logicalDevice, header->materialShader.stages[i].module, header->allocator);
-        header->materialShader.stages[i].module = 0;
+        vkDestroyShaderModule(header->device.logicalDevice, header->uiShader.stages[i].module, header->allocator);
+        header->uiShader.stages[i].module = 0;
     }
 }
 
