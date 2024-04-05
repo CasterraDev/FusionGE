@@ -1,0 +1,8 @@
+# Hashtags are comments
+#material file
+
+Name=testmaterial
+#Vec4 typed with f32's and values separated by a space
+DiffuseColor=1.0 1.0 1.0 1.0
+DiffuseMapName=Bricks085.png
+Type=World

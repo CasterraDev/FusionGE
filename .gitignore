@@ -1,0 +1,6 @@
+bin/
+obj/
+compile_commands.json
+nvim-dap.lua
+.cache/
+.git/
