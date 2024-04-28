@@ -9,10 +9,16 @@ void vulkanUIShaderDestroy(vulkanHeader* header, vulkanOverallShader* shader);
 
 void vulkanUIShaderUse(vulkanHeader* header, vulkanOverallShader* shader);
 
-void vulkanUIShaderUpdateGlobalState(vulkanHeader* header, vulkanOverallShader* shader);
+void vulkanUIShaderUpdateGlobalState(vulkanHeader* header,
+                                     vulkanOverallShader* shader);
 
-void vulkanUIShaderSetModel(vulkanHeader* header, struct vulkanOverallShader* shader, mat4 model);
-void vulkanUIShaderApplyMaterial(vulkanHeader* header, struct vulkanOverallShader* shader, material* material);
+void vulkanUIShaderSetModel(vulkanHeader* header,
+                            struct vulkanOverallShader* shader, mat4 model);
+void vulkanUIShaderApplyMaterial(vulkanHeader* header,
+                                 struct vulkanOverallShader* shader,
+                                 material* material);
 
-b8 vulkanUIShaderResourceAcquire(vulkanHeader* header, vulkanOverallShader* shader, material* mat);
-void vulkanUIShaderResourceRelease(vulkanHeader* header, vulkanOverallShader* shader, material* mat);
+b8 vulkanUIShaderResourceAcquire(vulkanHeader* header,
+                                 vulkanOverallShader* shader, material* mat);
+void vulkanUIShaderResourceRelease(vulkanHeader* header,
+                                   vulkanOverallShader* shader, material* mat);
