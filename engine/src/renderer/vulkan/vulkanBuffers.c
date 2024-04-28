@@ -3,12 +3,25 @@
 #include "defines.h"
 #include "core/logger.h"
 #include "core/fmemory.h"
+#include "helpers/freelist.h"
+
+void destroyFreelist(vulkanBuffer* buffer){
+    freelistDestroy(&buffer->bufferFreelist);
+    ffree(buffer->freelistBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
+    buffer->freelistMemReq = 0;
+    buffer->freelistBlock = 0;
+}
 
 b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usage, u32 memoryPropertyFlags, b8 autoBind, vulkanBuffer* outBuffer){
     fzeroMemory(outBuffer, sizeof(vulkanBuffer));
     outBuffer->totalSize = size;
     outBuffer->usageFlags = usage;
     outBuffer->memoryPropertyFlags = memoryPropertyFlags;
+
+    outBuffer->freelistMemReq = 0;
+    freelistCreate(size, &outBuffer->freelistMemReq, 0, 0);
+    outBuffer->freelistBlock = fallocate(outBuffer->freelistMemReq, MEMORY_TAG_RENDERER);
+    freelistCreate(size, &outBuffer->freelistMemReq, outBuffer->freelistBlock, &outBuffer->bufferFreelist);
     
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bufferCreateInfo.size = size;
@@ -23,6 +36,7 @@ b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usag
     outBuffer->memoryIndex = header->findMemoryIdx(memRequirements.memoryTypeBits, outBuffer->memoryPropertyFlags);
     if (outBuffer->memoryIndex == -1) {
         FERROR("Cant create vulkan buffer because memory idx was not found");
+        destroyFreelist(outBuffer);
         return false;
     }
 
@@ -33,6 +47,7 @@ b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usag
 
     if (vkAllocateMemory(header->device.logicalDevice, &allocInfo, header->allocator, &outBuffer->memoryDevice) != VK_SUCCESS) {
         FERROR("Failed to allocate memory for vulkan buffers");
+        destroyFreelist(outBuffer);
         return false;
     }
 
@@ -44,6 +59,9 @@ b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usag
 }
 
 void vulkanBufferDestroy(vulkanHeader* header, vulkanBuffer* buffer){
+    if (buffer->freelistBlock){
+        destroyFreelist(buffer);
+    }
     if (buffer->memoryDevice){
         vkFreeMemory(header->device.logicalDevice, buffer->memoryDevice, header->allocator);
         buffer->memoryDevice = 0;
@@ -57,7 +75,44 @@ void vulkanBufferDestroy(vulkanHeader* header, vulkanBuffer* buffer){
     buffer->isLocked = false;
 }
 
+b8 vulkanBufferAllocate(vulkanBuffer* buffer, u64 size, u64* outOffset) {
+    if (!buffer || !size || !outOffset){
+        FERROR("VulkanBufferAllocate failed. Needs valid parameters.\n");
+        return false;
+    }
+    return freelistAllocateBlock(&buffer->bufferFreelist, size, outOffset);
+}
+
+b8 vulkanBufferFree(vulkanBuffer* buffer, u64 size, u64 offset) {
+    if (!buffer || !size || !offset){
+        FERROR("VulkanBufferFree failed. Needs valid parameters.\n");
+        return false;
+    }
+    return freelistFreeBlock(&buffer->bufferFreelist, size, offset);
+}
+
 b8 vulkanBufferResize(vulkanHeader* header, u64 newSize, vulkanBuffer* buffer, VkQueue queue, VkCommandPool pool){
+    if (newSize < buffer->totalSize){
+        FERROR("VulkanBufferResize needs newSize to be larger than old size.\n");
+        return false;
+    }
+
+    // Resize freelist
+    u64 flNewMemReq = 0;
+    freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
+    void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
+    void* oldBlock = 0;
+    if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
+        FERROR("VulkanBufferResize failed to resize freelist.\n");
+        ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
+        return false;
+    }
+
+    ffree(oldBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
+    buffer->freelistMemReq = flNewMemReq;
+    buffer->freelistBlock = newBlock;
+    buffer->totalSize = newSize;
+
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bufferCreateInfo.size = newSize;
     bufferCreateInfo.usage = buffer->usageFlags;

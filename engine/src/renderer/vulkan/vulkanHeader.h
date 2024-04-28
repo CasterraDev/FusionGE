@@ -2,6 +2,7 @@
 
 #include "core/asserts.h"
 
+#include "helpers/freelist.h"
 #include "math/matrixMath.h"
 #include "resources/resourcesTypes.h"
 #include <vulkan/vulkan.h>
@@ -167,12 +168,15 @@ typedef struct vulkanBuffer {
     VkDeviceMemory memoryDevice;
     i32 memoryIndex;
     u32 memoryPropertyFlags;
+    u64 freelistMemReq;
+    void* freelistBlock;
+    freelist bufferFreelist;
 } vulkanBuffer;
 
 typedef struct vulkanGeometryBufferInfo {
     u32 count;
     u32 stride;
-    u32 bufferOffset;
+    u64 bufferOffset;
 } vulkanGeometryBufferInfo;
 
 /**
@@ -289,9 +293,6 @@ typedef struct vulkanHeader{
 
     vulkanBuffer objectVertexBuffer;
     vulkanBuffer objectIndexBuffer;
-
-    u64 geometryVertexOffset;
-    u64 geometryIndexOffset;
 
     vulkanGeometryData geometries[VULKAN_MAX_GEOMETRY_COUNT];
 

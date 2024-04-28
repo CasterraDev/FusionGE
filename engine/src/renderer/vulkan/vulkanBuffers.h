@@ -12,6 +12,9 @@ b8 vulkanBufferCreate(
 
 void vulkanBufferDestroy(vulkanHeader* header, vulkanBuffer* buffer);
 
+b8 vulkanBufferAllocate(vulkanBuffer* buffer, u64 size, u64* outOffset);
+b8 vulkanBufferFree(vulkanBuffer* buffer, u64 size, u64 offset);
+
 b8 vulkanBufferResize(
     vulkanHeader* header,
     u64 newSize,

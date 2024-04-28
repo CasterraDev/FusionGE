@@ -61,6 +61,7 @@ FSNAPI b8 freelistFreeBlock(freelist* list, u64 size, u64 offset);
  * twice; once passing 0 to newMemory to obtain new memory requirement, and a second
  * time passing an allocated block to memory.
  * NOTE: Must free oldMemory yourself.
+ * NOTE: Should be called twice to query memory requirements
  *
  * @param list The freelist to resize
  * @param memoryReq A pointer to hold memory requirement for the free

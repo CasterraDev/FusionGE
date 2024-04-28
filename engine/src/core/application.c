@@ -280,7 +280,7 @@ b8 appCreate(game* gameInst) {
 
     // Load up a plane configuration, and load geometry from it.
     geometryConfig g_config = geometrySystemGeneratePlaneConfig(
-        10.0f, 5.0f, 5, 5, 5.0f, 2.0f, "test geometry", "material");
+        10.0f, 5.0f, 1, 1, 1.0f, 1.0f, "test geometry", "material");
     appstate->testGeometry = geometrySystemAcquireFromConfig(g_config, true);
 
     // Clean up the allocations for the geometry config.
