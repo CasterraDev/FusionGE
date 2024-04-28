@@ -1043,10 +1043,10 @@ b8 vulkanCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt,
     internalData->vertexBufferInfo.count = vertexCnt;
     internalData->vertexBufferInfo.stride = vertexStride;
     u32 totalSize = vertexCnt * vertexStride;
-    if (!uploadDataViaStagingBuffer(&header, pool, 0, queue,
-                                   &header.objectVertexBuffer,
-                                   &internalData->vertexBufferInfo.bufferOffset,
-                                   totalSize, vertices)) {
+    if (!uploadDataViaStagingBuffer(
+            &header, pool, 0, queue, &header.objectVertexBuffer,
+            &internalData->vertexBufferInfo.bufferOffset, totalSize,
+            vertices)) {
         FERROR("vulkanCreateGeometry: uploadDataViaStagingBuffer failed.\n");
         return false;
     }
@@ -1060,7 +1060,8 @@ b8 vulkanCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt,
                 &header, pool, 0, queue, &header.objectIndexBuffer,
                 &internalData->indexBufferInfo.bufferOffset, totalSize,
                 indices)) {
-            FERROR("vulkanCreateGeometry: uploadDataViaStagingBuffer failed.\n");
+            FERROR(
+                "vulkanCreateGeometry: uploadDataViaStagingBuffer failed.\n");
             return false;
         }
     }
