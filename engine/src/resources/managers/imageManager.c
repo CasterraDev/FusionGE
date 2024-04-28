@@ -29,7 +29,7 @@ b8 imageManagerLoad(resourceManager* self, const char* name, resource* outResour
 
     const char* failReason = stbi_failure_reason();
 
-    if (failReason){
+    if (data == NULL && failReason){
         FERROR("Image Manager failed to get image %s", name);
         stbi__err(0,0);
         if (data){

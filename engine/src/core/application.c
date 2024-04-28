@@ -82,7 +82,7 @@ b8 applicationOnResized(u16 code, void* sender, void* listenerInst,
 b8 eventDebug(u16 code, void* sender, void* listener_inst, eventContext data) {
     const char* names[4] = {
         "rock_face_03_diff_HD.png",
-        "rubber_tiles_diff_HD.png",
+        "texture.jpg",
         "herringbone_pavement_diff_HD.png",
         "Bricks085.png"};
     static i8 choice = 1;
