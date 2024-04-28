@@ -2,6 +2,8 @@
 
 #include "defines.h"
 
+#define KEY_MAX_CHARS 50
+
 typedef struct hashtable {
     u64 elementStride;
     u32 elementLength;
@@ -10,7 +12,7 @@ typedef struct hashtable {
 } hashtable;
 
 typedef struct entry {
-    char key[50];
+    char key[KEY_MAX_CHARS];
     void* value;
 } entry;
 

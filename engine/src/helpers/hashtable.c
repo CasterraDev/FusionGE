@@ -55,14 +55,16 @@ void hashtableDestroy(hashtable* ht) {
 }
 
 b8 hashtableSet(hashtable* ht, const char* key, void* value){
-    int h = hash(key, ht->elementLength);
+    char temp[KEY_MAX_CHARS];
+    strNCpy(temp, key, KEY_MAX_CHARS);
+    int h = hash(temp, ht->elementLength);
     int y = h;
     for (int i = 0; i < ht->elementLength; i++) {
         entry* e = (entry*)(ht->memory + (sizeof(entry) * y));
         
-        if (strEqual(e->key, key) || strEqual(e->key, INVALID_KEY)) {
+        if (strEqual(e->key, temp) || strEqual(e->key, INVALID_KEY)) {
             entry t;
-            strCpy(t.key, key);
+            strNCpy(t.key, temp, 50);
             t.value = value;
             fcopyMemory(e, &t, sizeof(entry) + ht->elementStride);
             return true;
