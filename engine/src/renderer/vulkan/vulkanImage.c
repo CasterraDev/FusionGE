@@ -38,19 +38,19 @@ void vulkanImageCreate(
     VULKANSUCCESS(vkCreateImage(header->device.logicalDevice, &imageCreateInfo, header->allocator, &outImg->handle));
 
     // Query memory requirements.
-    VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(header->device.logicalDevice, outImg->handle, &memory_requirements);
+    VkMemoryRequirements memoryReqs;
+    vkGetImageMemoryRequirements(header->device.logicalDevice, outImg->handle, &memoryReqs);
 
-    i32 memory_type = header->findMemoryIdx(memory_requirements.memoryTypeBits, memoryFlags);
-    if (memory_type == -1) {
+    i32 memoryType = header->findMemoryIdx(memoryReqs.memoryTypeBits, memoryFlags);
+    if (memoryType == -1) {
         FERROR("Required memory type not found. Image not valid.");
     }
 
     // Allocate memory
-    VkMemoryAllocateInfo memory_allocate_info = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type;
-    VULKANSUCCESS(vkAllocateMemory(header->device.logicalDevice, &memory_allocate_info, header->allocator, &outImg->memory));
+    VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    memAllocInfo.allocationSize = memoryReqs.size;
+    memAllocInfo.memoryTypeIndex = memoryType;
+    VULKANSUCCESS(vkAllocateMemory(header->device.logicalDevice, &memAllocInfo, header->allocator, &outImg->memory));
 
     // Bind the memory
     VULKANSUCCESS(vkBindImageMemory(header->device.logicalDevice, outImg->handle, outImg->memory, 0));  // TODO: configurable memory offset.
@@ -74,10 +74,10 @@ void vulkanImageViewCreate(
     viewCreateInfo.subresourceRange.aspectMask = aspectFlags;
 
     // TODO: Make configurable
-    viewCreateInfo.subresourceRange.baseMipLevel = 0;
+    viewCreateInfo.subresourceRange.layerCount = 1;
     viewCreateInfo.subresourceRange.levelCount = 1;
     viewCreateInfo.subresourceRange.baseArrayLayer = 0;
-    viewCreateInfo.subresourceRange.layerCount = 1;
+    viewCreateInfo.subresourceRange.baseMipLevel = 0;
 
     VULKANSUCCESS(vkCreateImageView(header->device.logicalDevice, &viewCreateInfo, header->allocator, &image->view));
 }
