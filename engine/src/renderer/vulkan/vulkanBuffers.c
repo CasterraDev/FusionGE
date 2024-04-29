@@ -84,8 +84,8 @@ b8 vulkanBufferAllocate(vulkanBuffer* buffer, u64 size, u64* outOffset) {
 }
 
 b8 vulkanBufferFree(vulkanBuffer* buffer, u64 size, u64 offset) {
-    if (!buffer || !size || !offset){
-        FERROR("VulkanBufferFree failed. Needs valid parameters.\n");
+    if (!buffer || !size){
+        FERROR("VulkanBufferFree failed. Needs valid parameters. Parameters: buffer %p, size %d, offset %d\n", buffer, size, offset);
         return false;
     }
     return freelistFreeBlock(&buffer->bufferFreelist, size, offset);

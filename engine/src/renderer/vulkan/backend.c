@@ -1072,7 +1072,7 @@ b8 vulkanCreateGeometry(geometry* geometry, u32 vertexStride, u32 vertexCnt,
         internalData->generation++;
     }
 
-    if (!firstLoad) {
+    if (!firstLoad && old.vertexBufferInfo.stride != 0 && old.vertexBufferInfo.count != 0) {
         // Free vertex data
         freeDataInfo(&header.objectVertexBuffer,
                      old.vertexBufferInfo.bufferOffset,
