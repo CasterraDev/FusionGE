@@ -16,15 +16,14 @@ b8 materialManagerLoad(resourceManager* self, const char* name, resource* outRes
         FERROR("Could not open file: %s", name);
         return false;
     }
-    //TODO: Should use an allocator
     outResource->fullPath = strDup(fileLocation);
 
-    //TODO: Should use an allocator
     material* resmat = fallocate(sizeof(material), MEMORY_TAG_MATERIAL_INSTANCE);
     resmat->autoDelete = true;
     resmat->diffuseColor = vec4One();
     strNCpy(resmat->name, name, MATERIAL_MAX_LENGTH);
 
+    // Read the config file
     char lineBuffer[512] = "";
     char* c = &lineBuffer[0];
     u64 lineLen = 0;
@@ -95,8 +94,8 @@ void materialManagerUnload(resourceManager* self, resource* resource){
     if (resource->data){
         ffree(resource->data, resource->dataSize, MEMORY_TAG_MATERIAL_INSTANCE);
         resource->managerID = INVALID_ID;
-        //resource->data = 0;
-        //resource->dataSize = 0;
+        resource->data = 0;
+        resource->dataSize = 0;
     }
 }
 

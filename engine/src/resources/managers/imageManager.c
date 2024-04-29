@@ -13,7 +13,6 @@ b8 imageManagerLoad(resourceManager* self, const char* name, resource* outResour
     stbi_set_flip_vertically_on_load(true);
     char fullFilePath[512];
 
-    // TODO: try different extensions
     strFmt(fullFilePath, formatStr, resourceManagerRootAssetPath(), name);
 
     i32 width;
