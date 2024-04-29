@@ -124,7 +124,6 @@ b8 successfullVulkanResult(VkResult result) {
         case VK_ERROR_INVALID_EXTERNAL_HANDLE:
         case VK_ERROR_FRAGMENTATION:
         case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT:
-        // NOTE: Same as above
         //case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS:
         case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
         case VK_ERROR_UNKNOWN:

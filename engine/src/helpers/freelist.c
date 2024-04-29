@@ -21,10 +21,8 @@ void invalidateNode(freelist* list, freelistNode* node);
 
 void freelistCreate(u64 totalSize, u64* memoryRequirement, void* memory,
                     freelist* outList) {
-    u64 maxEntries = (totalSize / sizeof(void*)); // NOTE: Max amount of entries that the
-                                     // freelist could have
+    u64 maxEntries = (totalSize / sizeof(void*));
 
-    // Enough space for state and plus array for all nodes.
     *memoryRequirement = sizeof(internalState) + (sizeof(freelistNode) * maxEntries);
 
     if (!memory) {

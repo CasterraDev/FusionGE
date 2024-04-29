@@ -30,6 +30,7 @@ typedef struct appState {
     game* gameInstance;
     clock clock;
 
+    // TODO: Put this crap into another file
     linearAllocator systemsAllocator;
     linearAllocator subSystemsAllocator;
 
@@ -45,6 +46,7 @@ typedef struct appState {
     u64 textureSystemMemoryRequirement;
     u64 materialSystemMemoryRequirement;
     u64 geometrySystemMemoryRequirement;
+    // End TODO
 
     b8 isRunning;
     b8 isSuspended;
@@ -52,6 +54,7 @@ typedef struct appState {
     i16 height;
     f64 lastTime;
 
+    // TODO: Put this crap into another file
     void* loggerSystemPtr;
     void* eventSystemPtr;
     void* memorySystemPtr;
@@ -64,6 +67,7 @@ typedef struct appState {
     void* textureSystemPtr;
     void* materialSystemPtr;
     void* geometrySystemPtr;
+    // End TODO
 } appState;
 
 static appState* appstate;
@@ -79,13 +83,14 @@ b8 applicationOnResized(u16 code, void* sender, void* listenerInst,
                         eventContext context);
 
 // TODO: temp
-b8 eventDebug(u16 code, void* sender, void* listener_inst, eventContext data) {
+// Test out the texture/material swapping function
+b8 eventDebug(u16 code, void* sender, void* listener, eventContext data) {
     const char* names[4] = {
         "rock_face_03_diff_HD.png",
         "texture.jpg",
         "herringbone_pavement_diff_HD.png",
         "Bricks085.png"};
-    static i8 choice = 1;
+    static i8 choice = 3;
 
     // Save the old name to release it later.
     const char* old_name =
@@ -116,7 +121,7 @@ b8 eventDebug(u16 code, void* sender, void* listener_inst, eventContext data) {
 
 b8 appCreate(game* gameInst) {
     if (gameInst->appState) {
-        FERROR("appCreate called more than once.");
+        FERROR("APP: appCreate called more than once.");
         return false;
     }
 
@@ -124,7 +129,7 @@ b8 appCreate(game* gameInst) {
     memorySystemSettings memorySettings = {};
     memorySettings.totalSize = GIBIBYTES(1);
     if (!memoryInit(memorySettings)) {
-        FERROR("Failed to init the memory system. App shutting down.");
+        FERROR("APP: Failed to init the memory system. App shutting down.");
         return false;
     }
 
@@ -270,7 +275,7 @@ b8 appCreate(game* gameInst) {
         &appstate->systemsAllocator, appstate->geometrySystemMemoryRequirement);
     if (!geometrySystemInit(&appstate->geometrySystemMemoryRequirement,
                             appstate->geometrySystemPtr, geoConfig)) {
-        FFATAL("Failed to initialize geometry system. Application cannot "
+        FFATAL("APP: Failed to initialize geometry system. Application cannot "
                "continue.");
         return false;
     }
@@ -331,7 +336,7 @@ b8 appCreate(game* gameInst) {
 
     // Init the game.
     if (!appstate->gameInstance->initialize(appstate->gameInstance)) {
-        FFATAL("Game failed to init.");
+        FFATAL("APP: Game failed to init.");
         return false;
     }
 
@@ -364,7 +369,7 @@ b8 appRun() {
 
             if (!appstate->gameInstance->update(appstate->gameInstance,
                                                 (f32)delta)) {
-                FFATAL("Game update failed, shutting down.");
+                FFATAL("APP: Game update failed, shutting down.");
                 appstate->isRunning = false;
                 break;
             }
@@ -372,7 +377,7 @@ b8 appRun() {
             // Call the game's render routine.
             if (!appstate->gameInstance->render(appstate->gameInstance,
                                                 (f32)delta)) {
-                FFATAL("Game render failed, shutting down.");
+                FFATAL("APP: Game render failed, shutting down.");
                 appstate->isRunning = false;
                 break;
             }
@@ -396,7 +401,7 @@ b8 appRun() {
             // TODO: end temp
             rendererDraw(&header);
 
-            // Figure out how long the frame took and, if below
+            // Figure out how long the frame took
             f64 frameEndTime = platformGetAbsoluteTime();
             f64 frameElapsedTime = frameEndTime - frameStartTime;
             runningTime += frameElapsedTime;

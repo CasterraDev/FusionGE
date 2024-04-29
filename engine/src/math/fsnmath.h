@@ -41,7 +41,7 @@ FSNAPI f32 fsnSqrt(f32 x);
 FSNAPI f32 fsnAbs(f32 x);
 
 /**
- * Indicates if the value is a power of 2. 0 is considered Not_ a power of 2.
+ * Indicates if the value is a power of 2. 0 is considered NOT a power of 2.
  * @param value The value to be interpreted.
  * @returns True if a power of 2, otherwise false.
  */
