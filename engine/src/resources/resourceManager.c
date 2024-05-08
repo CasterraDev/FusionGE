@@ -5,6 +5,7 @@
 #include "managers/imageManager.h"
 #include "managers/binaryManager.h"
 #include "managers/materialManager.h"
+#include "resources/managers/shaderManager.h"
 
 typedef struct resourceManagerState{
     resourceManagerSettings settings;
@@ -38,6 +39,7 @@ b8 resourceManagerInit(u64* memoryRequirement, void* state, resourceManagerSetti
     resourceManagerLoadManager(imageManagerCreate());
     resourceManagerLoadManager(binaryManagerCreate());
     resourceManagerLoadManager(materialManagerCreate());
+    resourceManagerLoadManager(shaderManagerCreate());
 
     FINFO("Current resource manager root asset path is %s", settings.rootAssetPath);
     return true;
@@ -84,7 +86,9 @@ b8 resourceLoad(const char* name, ResourceType type, resource* outResource){
     resourceManager* m = &systemPtr->loadedManagers[type];
 
     if (m->id != INVALID_ID && m->load && outResource && name){
-        m->load(m, name, outResource);
+        if (!m->load(m, name, outResource)){
+            return false;
+        }
         outResource->managerID = type;
     }
     return true;

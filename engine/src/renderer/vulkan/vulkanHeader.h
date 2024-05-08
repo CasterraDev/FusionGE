@@ -6,8 +6,10 @@
 #include "math/matrixMath.h"
 #include "resources/resourcesTypes.h"
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #define VULKAN_MAX_GEOMETRY_COUNT 4096
+#define VULKAN_MAX_MATERIAL_COUNT 4096
 
 #define VULKAN_OVERALL_SHADER_DESCRIPTOR_COUNT 2
 #define VULKAN_OVERALL_MAX_SAMPLER_COUNT 1
@@ -76,6 +78,7 @@ typedef struct vulkanDevice {
     i32 presentQueueIdx;
     i32 computeQueueIdx;
     i32 transferQueueIdx;
+    b8 supportsDeviceLocalHost;
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
@@ -112,12 +115,6 @@ typedef struct vulkanSwapchain {
     VkFramebuffer framebuffers[3];
 } vulkanSwapchain;
 
-typedef struct vulkanShaderStage {
-    VkShaderModule module;
-    VkShaderModuleCreateInfo moduleCreateInfo;
-    VkPipelineShaderStageCreateInfo stageCreateInfo;
-} vulkanShaderStage;
-
 typedef struct vulkanPipelineConfig {
     /** @brief The name of the pipeline. Used for debugging purposes. */
     char* name;
@@ -148,7 +145,7 @@ typedef struct vulkanPipelineConfig {
     /** @brief The number of push constant data ranges. */
     u32 pushConstRangeCnt;
     /** @brief An array of push constant data ranges. */
-    //range* pushConstantRanges;
+    range* pushConstantRanges;
     /** @brief Collection of topology types to be supported on this pipeline. */
     u32 topologyTypes;
 } vulkanPipelineConfig;
@@ -171,6 +168,7 @@ typedef struct vulkanBuffer {
     u64 freelistMemReq;
     void* freelistBlock;
     freelist bufferFreelist;
+    b8 hasFreelist;
 } vulkanBuffer;
 
 typedef struct vulkanGeometryBufferInfo {
@@ -189,61 +187,103 @@ typedef struct vulkanGeometryData {
     vulkanGeometryBufferInfo indexBufferInfo;
 } vulkanGeometryData;
 
+/**
+ * @brief Put some hard limits in place for the count of supported textures,
+ * attributes, uniforms, etc. This is to maintain memory locality and avoid
+ * dynamic allocations.
+ */
+
+/** @brief The maximum number of stages (such as vertex, fragment, compute, etc.) allowed. */
+#define VULKAN_SHADER_MAX_STAGES 8
+/** @brief The maximum number of textures allowed at the global level. */
+#define VULKAN_SHADER_MAX_GLOBAL_TEXTURES 31
+/** @brief The maximum number of textures allowed at the instance level. */
+#define VULKAN_SHADER_MAX_INSTANCE_TEXTURES 31
+/** @brief The maximum number of vertex input attributes allowed. */
+#define VULKAN_SHADER_MAX_ATTRIBUTES 16
+/**
+ * @brief The maximum number of uniforms and samplers allowed at the
+ * global, instance and local levels combined. It's probably more than
+ * will ever be needed.
+ */
+#define VULKAN_SHADER_MAX_UNIFORMS 128
+
+/** @brief The maximum number of bindings per descriptor set. */
+#define VULKAN_SHADER_MAX_BINDINGS 32
+/** @brief The maximum number of push constant ranges for a shader. */
+#define VULKAN_SHADER_MAX_PUSH_CONST_RANGES 32
+
 typedef struct vulkanDescriptorState {
     // One per frame
-    u32 generations[3];
+    u8 generations[3];
     // One per frame
     u32 ids[3];
 } vulkanDescriptorState;
 
-//Global UBO
-typedef struct sceneUBO {
-    mat4 proj;
-    mat4 view;
-} sceneUBO;
-
-typedef struct materialUBO {
-    vector4 diffuse_color;  // 16 bytes
-    vector4 v_reserved0;    // 16 bytes, reserved for future use
-    vector4 v_reserved1;    // 16 bytes, reserved for future use
-    vector4 v_reserved2;    // 16 bytes, reserved for future use
-} materialUBO;
-
-typedef struct vulkanOverallShaderState {
-    // Per frame
+typedef struct vulkanDescriptorSetState {
     VkDescriptorSet descriptorSets[3];
+    vulkanDescriptorState descriptorStates[VULKAN_SHADER_MAX_BINDINGS];
+} vulkanDescriptorSetState;
 
+typedef struct vulkanOverallShaderInstanceState {
+    u32 id;
+    u64 offset;
     // Per descriptor
-    vulkanDescriptorState descriptorStates[VULKAN_OVERALL_SHADER_DESCRIPTOR_COUNT];
-} vulkanOverallShaderState;
+    vulkanDescriptorSetState descriptorStates;
+    struct texture** instanceTextures;
+} vulkanOverallShaderInstanceState;
+
+typedef struct vulkanStageInfo {
+    VkShaderStageFlagBits stage;
+    char fileName[255];
+} vulkanStageInfo;
+
+typedef struct vulkanShaderStage {
+    VkShaderModule module;
+    VkShaderModuleCreateInfo moduleCreateInfo;
+    VkPipelineShaderStageCreateInfo stageCreateInfo;
+} vulkanShaderStage;
+
+
+typedef struct vulkanDescSetConfig {
+    u8 bindCnt;
+    VkDescriptorSetLayoutBinding bindings[VULKAN_SHADER_MAX_BINDINGS];
+} vulkanDescSetConfig;
+
+typedef struct vulkanOverallShaderConfig {
+    u8 stageCnt;
+    vulkanStageInfo stages[VULKAN_SHADER_MAX_STAGES];
+    VkDescriptorPoolSize poolSize[2];
+    u16 maxDescSetCnt;
+    u8 descSetCnt;
+
+    /** @brief Index: 0=global, 1=instance */
+    vulkanDescSetConfig descriptorSetLayouts[2];
+    VkVertexInputAttributeDescription attributes[VULKAN_SHADER_MAX_ATTRIBUTES];
+} vulkanOverallShaderConfig;
 
 typedef struct vulkanOverallShader {
-    vulkanShaderStage stages[2];
-    VkDescriptorPool globalDescriptorPool;
-    VkDescriptorSetLayout globalDescriptorSetLayout;
+    /** @brief The block of memory mapped to the uniform buffer. */
+    void* mappedUniformBufferBlock;
+    u32 id;
+    vulkanOverallShaderConfig config;
+    vulkanShaderStage stages[VULKAN_SHADER_MAX_STAGES];
+    /** @brief Index: 0=global, 1=instance */
+    VkDescriptorSetLayout descriptorSetLayouts[2];
 
     // One descriptor set per frame
     VkDescriptorSet globalDescriptorSets[3];
 
-    // Global uniform object.
-    sceneUBO globalUbo;
-
-    // Global uniform buffer.
-    vulkanBuffer globalUniformBuffer;
-
-    VkDescriptorPool objectDescriptorPool;
-    VkDescriptorSetLayout objectDescriptorSetLayout;
+    VkDescriptorPool descriptorPool;
     // Object uniform buffers.
-    vulkanBuffer objectUniformBuffer;
-    // TODO: manage a free list of some kind here instead.
-    u32 objectUniformBufferIdx;
-
-    mapType samplerTypes[VULKAN_OVERALL_MAX_SAMPLER_COUNT];
-
-    // TODO: make dynamic
-    vulkanOverallShaderState objectStates[VULKAN_OVERALL_MAX_OBJECT_COUNT];
+    vulkanBuffer uniformBuffer;
 
     vulkanPipeline pipeline;
+    vulkanRenderpass* renderpass;
+
+    // TODO: make dynamic
+    u32 instanceCnt;
+    vulkanOverallShaderInstanceState instanceStates[VULKAN_OVERALL_MAX_OBJECT_COUNT];
 } vulkanOverallShader;
 
 typedef struct vulkanTextureData {

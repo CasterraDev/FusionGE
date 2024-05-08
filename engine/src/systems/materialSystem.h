@@ -4,6 +4,8 @@
 #include "resources/resourcesTypes.h"
 #include "math/matrixMath.h"
 
+#define BUILTIN_MATERIAL_PBR_NAME "Builtin.Shader.PBR"
+#define BUILTIN_MATERIAL_UI_NAME "Builtin.Shader.UI"
 typedef struct materialSystemSettings{
     u64 maxMaterialCnt;
 } materialSystemSettings;
@@ -24,3 +26,6 @@ material* materialSystemMaterialGetFromConfig(const char* name);
 void materialSystemMaterialRelease(const char* name);
 b8 materialSystemCreateDefault();
 material* materialSystemGetDefault();
+b8 materialSystemUpdateGlobal(u32 shaderID, const mat4* proj, const mat4* view);
+b8 materialSystemUpdateInstance(material* m);
+b8 materialSystemUpdateLocal(material* m, const mat4* model);

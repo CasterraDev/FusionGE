@@ -1,0 +1,18 @@
+version=1.0
+name=Builtin.Shader.PBR
+renderpass=Renderpass.Builtin.World
+stages=vert,frag
+stagefiles=shaders/App.MaterialShader.vert.spv,shaders/App.MaterialShader.frag.spv
+hasInstances=1
+hasLocals=1
+
+attribute=vec3,in_position
+attribute=vec2,in_texcoord
+
+# Uniforms: type,scope,name
+# NOTE: For scope: 0=global, 1=instance, 2=local
+uniform=mat4,0,projection
+uniform=mat4,0,view
+uniform=vec4,1,diffuse_colour
+uniform=samp,1,diffuse_texture
+uniform=mat4,2,model

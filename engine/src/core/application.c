@@ -17,6 +17,7 @@
 #include "systems/cameraSystem.h"
 #include "systems/geometrySystem.h"
 #include "systems/materialSystem.h"
+#include "systems/shaderSystem.h"
 #include "systems/textureSystem.h"
 
 // TODO: TEMP
@@ -46,6 +47,7 @@ typedef struct appState {
     u64 textureSystemMemoryRequirement;
     u64 materialSystemMemoryRequirement;
     u64 geometrySystemMemoryRequirement;
+    u64 shaderSystemMemoryRequirement;
     // End TODO
 
     b8 isRunning;
@@ -67,6 +69,7 @@ typedef struct appState {
     void* textureSystemPtr;
     void* materialSystemPtr;
     void* geometrySystemPtr;
+    void* shaderSystemPtr;
     // End TODO
 } appState;
 
@@ -85,11 +88,9 @@ b8 applicationOnResized(u16 code, void* sender, void* listenerInst,
 // TODO: temp
 // Test out the texture/material swapping function
 b8 eventDebug(u16 code, void* sender, void* listener, eventContext data) {
-    const char* names[4] = {
-        "rock_face_03_diff_HD.png",
-        "texture.jpg",
-        "herringbone_pavement_diff_HD.png",
-        "Bricks085.png"};
+    const char* names[4] = {"rock_face_03_diff_HD.png", "texture.jpg",
+                            "herringbone_pavement_diff_HD.png",
+                            "Bricks085.png"};
     static i8 choice = 3;
 
     // Save the old name to release it later.
@@ -164,6 +165,16 @@ b8 appCreate(game* gameInst) {
                         rsSettings);
     subsystemsSize += appstate->resourceManagerMemoryRequirement;
 
+    shaderSystemSettings shaderSysConfig;
+    // These numbers I just made up
+    shaderSysConfig.maxShaderCnt = 1024;
+    shaderSysConfig.maxUniformCnt = 128;
+    shaderSysConfig.maxGlobalTextures = 32;
+    shaderSysConfig.maxInstanceTextures = 32;
+    shaderSystemInit(&appstate->shaderSystemMemoryRequirement, 0,
+                     shaderSysConfig);
+    subsystemsSize += appstate->shaderSystemMemoryRequirement;
+
     rendererInit(&appstate->rendererSystemMemoryRequirement, 0,
                  appstate->gameInstance->appConfig.name);
     subsystemsSize += appstate->rendererSystemMemoryRequirement;
@@ -188,6 +199,11 @@ b8 appCreate(game* gameInst) {
     appstate->resourceManagerPtr =
         linearAllocAllocate(&appstate->subSystemsAllocator,
                             appstate->resourceManagerMemoryRequirement);
+
+    appstate->shaderSystemPtr =
+        linearAllocAllocate(&appstate->subSystemsAllocator,
+                            appstate->shaderSystemMemoryRequirement);
+
     appstate->rendererSystemPtr =
         linearAllocAllocate(&appstate->subSystemsAllocator,
                             appstate->rendererSystemMemoryRequirement);
@@ -218,6 +234,12 @@ b8 appCreate(game* gameInst) {
 
     resourceManagerInit(&appstate->resourceManagerMemoryRequirement,
                         appstate->resourceManagerPtr, rsSettings);
+
+    if (!shaderSystemInit(&appstate->shaderSystemMemoryRequirement,
+                          appstate->shaderSystemPtr, shaderSysConfig)) {
+        FFATAL("APP: Failed to init shader system");
+        return false;
+    }
 
     // TODO: Place rendererInit here
 
@@ -473,11 +495,11 @@ void appGetFramebufferSize(u32* width, u32* height) {
 b8 applicationOnEvent(u16 code, void* sender, void* listenerInst,
                       eventContext context) {
     switch (code) {
-    case EVENT_CODE_APPLICATION_QUIT: {
-        FINFO("EVENT_CODE_APPLICATION_QUIT recieved, shutting down.\n");
-        appstate->isRunning = false;
-        return true;
-    }
+        case EVENT_CODE_APPLICATION_QUIT: {
+            FINFO("EVENT_CODE_APPLICATION_QUIT recieved, shutting down.\n");
+            appstate->isRunning = false;
+            return true;
+        }
     }
 
     return false;

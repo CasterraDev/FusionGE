@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "math/matrixMath.h"
 #include "resources/resourcesTypes.h"
+#include "systems/shaderSystem.h"
 
 typedef enum builtinRenderpass {
     BUILTIN_RENDERPASS_WORLD,
@@ -14,8 +15,6 @@ typedef enum rendererBackendAPI {
     RENDERER_BACKEND_API_OPENGL,
     RENDERER_BACKEND_API_DIRECTX
 } rendererBackendAPI;
-
-
 
 typedef struct geometryRenderData {
     mat4 model;
@@ -31,8 +30,6 @@ typedef struct rendererBackend {
     void (*shutdown)(struct rendererBackend* backend);
 
     void (*resized)(struct rendererBackend* backend, u16 width, u16 height);
-    void (*updateGlobalState)(mat4 projection, mat4 view, vector3 viewPos, vector4 ambientColor, i32 mode);
-    void (*updateGlobalUIState)(mat4 projection, mat4 view, i32 mode);
     void (*drawGeometry)(geometryRenderData data);
 
     b8 (*beginFrame)(struct rendererBackend* backend, f32 deltaTime);
@@ -43,11 +40,23 @@ typedef struct rendererBackend {
     b8 (*createTexture)(const u8* pixels, texture* outTexture);
     void (*destroyTexture)(texture* texture);
 
-    b8 (*createMaterial)(material* m);
-    void (*destroyMaterial)(material* m);
-
-    b8 (*createGeometry)(geometry* geometry, u32 vertexStride, u32 vertexCnt, const void* vertices, u32 indexStride, u32 indexCnt, const void* indices);
+    b8 (*createGeometry)(geometry* geometry, u32 vertexStride, u32 vertexCnt,
+                         const void* vertices, u32 indexStride, u32 indexCnt,
+                         const void* indices);
     void (*destroyGeometry)(geometry* geometry);
+
+    b8 (*shaderCreate)(shader* shader, u8 renderpassID, u8 stageCnt,
+                       shaderStage* stages, const char** stageFilenames);
+    b8 (*shaderDestroy)(shader*);
+    b8 (*shaderInit)(shader* shader);
+    b8 (*shaderUse)(shader* shader);
+    b8 (*shaderApplyGlobals)(shader* shader);
+    b8 (*shaderApplyInstance)(shader* shader);
+    b8 (*shaderBindGlobals)(shader* shader);
+    b8 (*shaderBindInstance)(shader* shader, u32 instanceID);
+    b8 (*shaderUniformSet)(shader* s, shaderUniform u, const void* val);
+    b8 (*shaderFreeInstanceStruct)(shader* s, u32 instanceID);
+    b8 (*shaderAllocateInstanceStruct)(shader* s, u32* outInstanceID);
 } rendererBackend;
 
 typedef struct renderHeader {
@@ -56,6 +65,6 @@ typedef struct renderHeader {
 
     u32 uiGeometryCnt;
     geometryRenderData* uiGeometries;
-    
+
     f32 deltaTime;
 } renderHeader;

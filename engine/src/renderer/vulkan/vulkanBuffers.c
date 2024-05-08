@@ -12,16 +12,18 @@ void destroyFreelist(vulkanBuffer* buffer){
     buffer->freelistBlock = 0;
 }
 
-b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usage, u32 memoryPropertyFlags, b8 autoBind, vulkanBuffer* outBuffer){
+b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usage, u32 memoryPropertyFlags, b8 autoBind, b8 hasFreelist, vulkanBuffer* outBuffer){
     fzeroMemory(outBuffer, sizeof(vulkanBuffer));
     outBuffer->totalSize = size;
     outBuffer->usageFlags = usage;
     outBuffer->memoryPropertyFlags = memoryPropertyFlags;
-
-    outBuffer->freelistMemReq = 0;
-    freelistCreate(size, &outBuffer->freelistMemReq, 0, 0);
-    outBuffer->freelistBlock = fallocate(outBuffer->freelistMemReq, MEMORY_TAG_RENDERER);
-    freelistCreate(size, &outBuffer->freelistMemReq, outBuffer->freelistBlock, &outBuffer->bufferFreelist);
+    if (hasFreelist) {
+        outBuffer->freelistMemReq = 0;
+        freelistCreate(size, &outBuffer->freelistMemReq, 0, 0);
+        outBuffer->freelistBlock = fallocate(outBuffer->freelistMemReq, MEMORY_TAG_RENDERER);
+        freelistCreate(size, &outBuffer->freelistMemReq, outBuffer->freelistBlock, &outBuffer->bufferFreelist);
+        outBuffer->hasFreelist = true;
+    }
     
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bufferCreateInfo.size = size;
@@ -80,6 +82,12 @@ b8 vulkanBufferAllocate(vulkanBuffer* buffer, u64 size, u64* outOffset) {
         FERROR("VulkanBufferAllocate failed. Needs valid parameters.\n");
         return false;
     }
+
+    if (!buffer->hasFreelist){
+        FWARN("vulkanBufferAllocate called on a buffer without a freelist. Should use vulkanBufferLoadData.");
+        *outOffset = 0;
+        return true;
+    }
     return freelistAllocateBlock(&buffer->bufferFreelist, size, outOffset);
 }
 
@@ -87,6 +95,10 @@ b8 vulkanBufferFree(vulkanBuffer* buffer, u64 size, u64 offset) {
     if (!buffer || !size){
         FERROR("VulkanBufferFree failed. Needs valid parameters. Parameters: buffer %p, size %d, offset %d\n", buffer, size, offset);
         return false;
+    }
+    if (!buffer->hasFreelist){
+        FWARN("vulkanBufferFree called on a buffer without a freelist. You don't need to do this.");
+        return true;
     }
     return freelistFreeBlock(&buffer->bufferFreelist, size, offset);
 }
@@ -97,20 +109,22 @@ b8 vulkanBufferResize(vulkanHeader* header, u64 newSize, vulkanBuffer* buffer, V
         return false;
     }
 
-    // Resize freelist
-    u64 flNewMemReq = 0;
-    freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
-    void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
-    void* oldBlock = 0;
-    if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
-        FERROR("VulkanBufferResize failed to resize freelist.\n");
-        ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
-        return false;
-    }
+    if (buffer->hasFreelist){
+        // Resize freelist
+        u64 flNewMemReq = 0;
+        freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
+        void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
+        void* oldBlock = 0;
+        if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
+            FERROR("VulkanBufferResize failed to resize freelist.\n");
+            ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
+            return false;
+        }
 
-    ffree(oldBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
-    buffer->freelistMemReq = flNewMemReq;
-    buffer->freelistBlock = newBlock;
+        ffree(oldBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
+        buffer->freelistMemReq = flNewMemReq;
+        buffer->freelistBlock = newBlock;
+    }
     buffer->totalSize = newSize;
 
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};

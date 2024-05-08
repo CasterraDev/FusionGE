@@ -2,6 +2,7 @@
 #include "helpers/dinoArray.h"
 #include "core/fmemory.h"
 #include "core/logger.h"
+#include "vulkan/vulkan_core.h"
 
 typedef struct deviceRequirements {
     b8 graphics;
@@ -195,6 +196,14 @@ b8 getVulkanDevice(vulkanHeader* header){
         vkGetPhysicalDeviceFeatures(devices[i], &features);
         vkGetPhysicalDeviceMemoryProperties(devices[i], &memory);
 
+        b8 supportsDeviceLocalHost = false;
+        for (u32 i = 0; i < memory.memoryTypeCount; i++){
+            if (((memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) && 
+                    ((memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0)) {
+                supportsDeviceLocalHost = true;
+            }
+        }
+
         //Set the requirements needed for the app
         //TODO: Make some of these configurable options if able
         deviceRequirements requirements = {};
@@ -265,6 +274,7 @@ b8 getVulkanDevice(vulkanHeader* header){
             header->device.properties = properties;
             header->device.features = features;
             header->device.memory = memory;
+            header->device.supportsDeviceLocalHost = supportsDeviceLocalHost;
             break;
         }
     }

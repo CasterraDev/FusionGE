@@ -33,4 +33,5 @@ Since I am learning renderers while making this project, This is a list of artic
 - Travis Vroman: [Kohi C Game Engine Series](https://www.youtube.com/playlist?list=PLv8Ddw9K0JPg1BEO-RS-0MYs423cvLVtj)
 - Brendan Galea: [C++ Game Engine Tutorial](https://www.youtube.com/playlist?list=PL8327DO66nu9qYVKLDmdLW_84-yE4auCR) 
 - [Vulkan Tutorial](https://vulkan-tutorial.com/)
+- [Descriptor Sets Tutorial](https://www.youtube.com/watch?v=d5p44idnZLQ)
 - And a bunch of stackoverflow/reddit posts
