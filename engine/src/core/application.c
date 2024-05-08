@@ -278,9 +278,12 @@ b8 appCreate(game* gameInst) {
 
     // TODO: TEMPorary renderer is placed here cuz some temp code in it needs
     // the camera system inited. Place under second platformStartup call
-    rendererInit(&appstate->rendererSystemMemoryRequirement,
+    if (!rendererInit(&appstate->rendererSystemMemoryRequirement,
                  appstate->rendererSystemPtr,
-                 appstate->gameInstance->appConfig.name);
+                 appstate->gameInstance->appConfig.name)){
+        FERROR("Failed to init renderer");
+        return false;
+    }
 
     appstate->textureSystemPtr = linearAllocAllocate(
         &appstate->systemsAllocator, appstate->textureSystemMemoryRequirement);

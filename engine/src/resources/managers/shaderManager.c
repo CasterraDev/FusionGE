@@ -20,7 +20,7 @@ b8 shaderManagerLoad(resourceManager* self, const char* name,
     }
     outResource->fullPath = strDup(fileLocation);
 
-    shaderRS* r = fallocate(sizeof(material), MEMORY_TAG_MATERIAL_INSTANCE);
+    shaderRS* r = fallocate(sizeof(shaderRS), MEMORY_TAG_RESOURCE);
     r->name = 0;
     r->stages = dinoCreate(shaderStage);
     r->stageCnt = 0;

@@ -2,6 +2,7 @@
 #include "core/fstring.h"
 #include "core/logger.h"
 #include "defines.h"
+#include "helpers/dinoArray.h"
 #include "math/fsnmath.h"
 #include "renderer/renderTypes.h"
 #include "renderer/rendererBack.h"
@@ -86,6 +87,7 @@ b8 rendererInit(u64* memoryRequirement, void* memoryState,
         return false;
     }
     shaderRS* s = (shaderRS*)res.data;
+    FINFO("Shader2: %d", dinoLength(s->uniforms));
     if (!shaderSystemCreate(s)){
         FERROR("Failed creating pbr material");
         return false;

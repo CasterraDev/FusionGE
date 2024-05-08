@@ -78,6 +78,7 @@ b8 shaderSystemShutdown(void* state) {
 }
 
 b8 shaderSystemCreate(const shaderRS* config) {
+    FINFO("Shader3: %d", dinoLength(config->uniforms));
     if (systemPtr->actualShaderCnt > systemPtr->settings.maxShaderCnt) {
         FERROR("Shader array is full. Booting...");
         return false;
@@ -87,6 +88,7 @@ b8 shaderSystemCreate(const shaderRS* config) {
     systemPtr->actualShaderCnt++;
 
     shader* s = &systemPtr->shaders[id];
+    s->id = id;
     s->state = SHADER_STATE_UN_INITED;
     s->name = strDup(config->name);
     s->hasInstances = config->hasInstances;
@@ -103,7 +105,7 @@ b8 shaderSystemCreate(const shaderRS* config) {
 
     u64 elSize = sizeof(u16);
     u64 elCnt = 512;
-    s->uniformHashtableBlock = fallocate(elSize * elCnt, MEMORY_TAG_UNKNOWN);
+    s->uniformHashtableBlock = fallocate(elSize * elCnt, MEMORY_TAG_ARRAY);
     hashtableCreate(elSize, elCnt, s->uniformHashtableBlock, false,
                     &s->uniformsHT);
 
@@ -172,6 +174,7 @@ b8 shaderSystemCreate(const shaderRS* config) {
 
     // Add uniforms if sampler/uniform
     for (u32 i = 0; i < config->uniformCnt; i++) {
+        FINFO("ShaderLoop: %d", dinoLength(config->uniforms));
         // Check to make sure uniform isn't inited
         if (s->state != SHADER_STATE_UN_INITED) {
             FERROR("You can only add uniforms to shaders that haven't been "
@@ -180,12 +183,12 @@ b8 shaderSystemCreate(const shaderRS* config) {
         }
 
         // Check if name is already used
-        u16 x;
-        if (hashtableGet(&s->uniformsHT, config->uniforms[i].name, &x)) {
-            FERROR("Uniform: '%s' already exists on Shader: '%s'",
-                   config->uniforms[i].name, s->name);
-            return false;
-        }
+        // u16 x;
+        // if (hashtableGet(&s->uniformsHT, config->uniforms[i].name, &x)) {
+        //     FERROR("Uniform: '%s' already exists on Shader: '%s'",
+        //            config->uniforms[i].name, s->name);
+        //     return false;
+        // }
         if (config->uniforms[i].type == SHADER_UNIFORM_TYPE_SAMPLER) {
             // Add it as a sampler
 
@@ -223,9 +226,9 @@ b8 shaderSystemCreate(const shaderRS* config) {
                 s->instanceTextureCnt++;
             }
 
-            u32 uniCnt = dinoLength(config->uniforms);
+            u32 uniCnt = dinoLength(s->uniforms);
             if (uniCnt + 1 > systemPtr->settings.maxUniformCnt) {
-                FERROR("Uniform array is full.");
+                FERROR("UniformSampler: Uniform array is full.");
                 return false;
             }
 
@@ -247,7 +250,8 @@ b8 shaderSystemCreate(const shaderRS* config) {
             // Add it as a uniform
 
             // Make sure theirs room in the array for more uniforms
-            u32 uniCnt = dinoLength(config->uniforms);
+            u32 uniCnt = dinoLength(s->uniforms);
+            FINFO("Shader4: %d", uniCnt);
             if (uniCnt + 1 > systemPtr->settings.maxUniformCnt) {
                 FERROR("Uniform array is full.");
                 return false;
