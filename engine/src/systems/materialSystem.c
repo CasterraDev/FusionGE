@@ -102,9 +102,6 @@ material* materialSystemMaterialGet(const char* name){
         }else{
             m = (material*)res.data;
         }
-        //TODO: TEMP
-        m->texMaps = 0;
-        //TODO: END TEMP
 
         resourceUnload(&res);
         
@@ -150,16 +147,6 @@ void materialSystemMaterialRelease(const char* name){
 
 void destroyMaterial(material* mat){
     if (mat){
-        if (mat->texMaps){
-            u32 len = dinoLength(mat->texMaps);
-            for (u32 i = 0; i < len; i++){
-                if (mat->texMaps[i].texture){
-                    textureSystemTextureRelease(mat->texMaps[i].texture->name);
-                }
-            }
-            dinoDestroy(mat->texMaps);
-        }
-
         rendererDestroyMaterial(mat);
         
         fzeroMemory(mat, sizeof(material));

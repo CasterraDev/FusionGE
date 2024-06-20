@@ -148,7 +148,7 @@ typedef struct vulkanPipelineConfig {
     /** @brief The number of push constant data ranges. */
     u32 pushConstRangeCnt;
     /** @brief An array of push constant data ranges. */
-    //range* pushConstantRanges;
+    range* pushConstantRanges;
     /** @brief Collection of topology types to be supported on this pipeline. */
     u32 topologyTypes;
 } vulkanPipelineConfig;
@@ -245,6 +245,10 @@ typedef struct vulkanOverallShader {
     vulkanOverallShaderState objectStates[VULKAN_OVERALL_MAX_OBJECT_COUNT];
 
     vulkanPipeline pipeline;
+    /** @brief The number of push constant data ranges. */
+    u32 pushConstRangeCnt;
+    /** @brief An array of push constant data ranges. */
+    range* pushConstantRanges;
 } vulkanOverallShader;
 
 typedef struct vulkanTextureData {

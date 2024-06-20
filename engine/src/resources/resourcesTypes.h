@@ -13,6 +13,7 @@ typedef enum ResourceType {
     RESOURCE_TYPE_BINARY,
     RESOURCE_TYPE_IMAGE,
     RESOURCE_TYPE_MATERIAL,
+    RESOURCE_TYPE_SHADER,
     RESOURCE_TYPE_CUSTOM
 } ResourceType;
 
@@ -119,6 +120,21 @@ typedef enum MaterialTypes {
 
 #define DEFAULT_MATERIAL_NAME "Fusion_Default_Material"
 
+/**
+ * @brief Material config. All the info needed to create a material.
+ * Can be made from a file or in code.
+ */
+typedef struct materialConfig {
+    char name[FILENAME_MAX_LENGTH];
+    char shaderName[FILENAME_MAX_LENGTH];
+    /** @brief whether this material should delete itself when it stops being used. */
+    b8 autoDelete;
+    
+    //TODO: TEMP
+    vector4 diffuseColor;
+    char diffuseMapName[FILENAME_MAX_LENGTH];
+} materialConfig;
+
 typedef struct material {
     char name[FILENAME_MAX_LENGTH];
     /** @brief whether this material should delete itself when it stops being used. */
@@ -127,14 +143,12 @@ typedef struct material {
     /** @brief The material generation. Incremented every time the data is
      * reloaded. */
     u32 generation;
+    u32 internalID;
     u32 shaderID;
     /** @brief how many things are referencing this material. */
     u64 refCnt;
     MaterialTypes type;
     
-    //Dino
-    textureMap* texMaps;
-
     //TODO: TEMP
     vector4 diffuseColor;
     textureMap diffuseMap;
@@ -155,3 +169,107 @@ typedef struct geometry {
     char name[GEOMETRY_NAME_MAX_LENGTH];
     material* material;
 } geometry;
+
+/** --------------------------------------------SHADER RES-------------------------------------------- */
+
+/** @brief Shader stages available in the gameengine. */
+typedef enum shaderStage {
+    SHADER_STAGE_VERTEX = 0x00000001,
+    SHADER_STAGE_GEOMETRY = 0x00000002,
+    SHADER_STAGE_FRAGMENT = 0x00000004,
+    SHADER_STAGE_COMPUTE = 0x0000008
+} shaderStage;
+
+/** @brief Available attribute types. */
+typedef enum shaderAttributeType {
+    SHADER_ATTRIB_TYPE_FLOAT32 = 0U,
+    SHADER_ATTRIB_TYPE_FLOAT32_2 = 1U,
+    SHADER_ATTRIB_TYPE_FLOAT32_3 = 2U,
+    SHADER_ATTRIB_TYPE_FLOAT32_4 = 3U,
+    SHADER_ATTRIB_TYPE_MATRIX_4 = 4U,
+    SHADER_ATTRIB_TYPE_INT8 = 5U,
+    SHADER_ATTRIB_TYPE_UINT8 = 6U,
+    SHADER_ATTRIB_TYPE_INT16 = 7U,
+    SHADER_ATTRIB_TYPE_UINT16 = 8U,
+    SHADER_ATTRIB_TYPE_INT32 = 9U,
+    SHADER_ATTRIB_TYPE_UINT32 = 10U,
+} shaderAttributeType;
+
+/** @brief Available uniform types. */
+typedef enum shaderUniformType {
+    SHADER_UNIFORM_TYPE_FLOAT32 = 0U,
+    SHADER_UNIFORM_TYPE_FLOAT32_2 = 1U,
+    SHADER_UNIFORM_TYPE_FLOAT32_3 = 2U,
+    SHADER_UNIFORM_TYPE_FLOAT32_4 = 3U,
+    SHADER_UNIFORM_TYPE_INT8 = 4U,
+    SHADER_UNIFORM_TYPE_UINT8 = 5U,
+    SHADER_UNIFORM_TYPE_INT16 = 6U,
+    SHADER_UNIFORM_TYPE_UINT16 = 7U,
+    SHADER_UNIFORM_TYPE_INT32 = 8U,
+    SHADER_UNIFORM_TYPE_UINT32 = 9U,
+    SHADER_UNIFORM_TYPE_MATRIX_4 = 10U,
+    SHADER_UNIFORM_TYPE_SAMPLER = 11U,
+    SHADER_UNIFORM_TYPE_CUSTOM = 255U
+} shaderUniformType;
+
+/**
+ * @brief Defines shader scope, which indicates how
+ * often it gets updated.
+ */
+typedef enum shaderScope {
+    /** @brief Global shader scope, generally updated once per frame. */
+    SHADER_SCOPE_GLOBAL = 0,
+    /** @brief Instance shader scope, generally updated "per-instance" of the shader. */
+    SHADER_SCOPE_INSTANCE = 1,
+    /** @brief Local shader scope, generally updated per-object */
+    SHADER_SCOPE_LOCAL = 2
+} shaderScope;
+
+typedef struct shaderAttributeConfig {
+    /* The name of the Attribute */
+    char* name;
+    /* The length of the name of the Attribute */
+    u8 nameLen;
+    /* The size of the Attribute */
+    u8 size;
+    /* The type of the Attribute */
+    shaderAttributeType type;
+} shaderAttributeConfig;
+
+typedef struct shaderUniformConfig {
+    /* The name of the Uniform */
+    char* name;
+    /* The length of the name of the Uniform */
+    u8 nameLen;
+    /* The size of the Uniform */
+    u8 size;
+    /* The type of the Uniform */
+    shaderUniformType type;
+    /* The location of the Uniform */
+    u32 location;
+    /* The scope of the Uniform */
+    shaderScope scope;
+} shaderUniformConfig;
+
+/**
+ * @brief Shader Config. All the info needed to create a shader.
+ * Can be created by .shadercfg file or in code.
+ * Used by the resource manager to load shaders.
+ */
+typedef struct shaderConfig {
+    char* name;
+    b8 hasInstances;
+    b8 hasLocal;
+    u8 attributeCnt;
+    shaderAttributeConfig* attributes;
+
+    u8 uniformCnt;
+    shaderUniformConfig* uniforms;
+
+    char* renderpassName;
+
+    u8 stageCnt;
+    shaderStage* stages;
+    char** stageNames;
+    char** stageFiles;
+} shaderConfig;

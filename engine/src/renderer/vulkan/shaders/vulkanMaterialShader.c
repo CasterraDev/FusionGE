@@ -173,6 +173,7 @@ b8 vulkanMaterialShaderCreate(vulkanHeader* header,
     config.shouldDepthTest = true;
     config.descriptorSetLayoutCnt = DESCRIPTOR_SET_LAYOUTS_CNT;
     config.descriptorSetLayouts = descriptorSetLayouts;
+    config.pushConstRangeCnt = outShader->pushConstRangeCnt;
 
     if (!vulkanPipelineCreate(header, &config, &outShader->pipeline)) {
         FERROR("Failed to create pipeline: %s", config.name);

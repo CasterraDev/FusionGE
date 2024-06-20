@@ -1,9 +1,10 @@
 #include "core/fstring.h"
 #include "core/fmemory.h"
-#include <string.h>
-#include <stdio.h>
+#include "helpers/dinoArray.h"
+#include <ctype.h> // isspace
 #include <stdarg.h>
-#include <ctype.h>  // isspace
+#include <stdio.h>
+#include <string.h>
 
 #ifndef _MSC_VER
 #include <strings.h>
@@ -12,7 +13,7 @@
 /**
  * This is all stolen from somewhere.
  * I'm not doing string math. Not yet.
-*/
+ */
 
 u64 strLen(const char* str) {
     return strlen(str);
@@ -33,11 +34,11 @@ char* strEmpty(char* str) {
     return str;
 }
 
-char* strSub(const char* str, const char* sub){
-    return strstr(str,sub);
+char* strSub(const char* str, const char* sub) {
+    return strstr(str, sub);
 }
 
-//Case-sensitive
+// Case-sensitive
 b8 strEqual(const char* str0, const char* str1) {
     return strcmp(str0, str1) == 0;
 }
@@ -55,8 +56,8 @@ char* strCpy(char* dest, const char* source) {
     return strcpy(dest, source);
 }
 
-char* strNCpy(char* txt, const char* src, u64 len){
-    return strncpy(txt, src, len);    
+char* strNCpy(char* txt, const char* src, u64 len) {
+    return strncpy(txt, src, len);
 }
 
 i32 strFmtV(char* dest, const char* format, void* vaListp) {
@@ -141,6 +142,85 @@ i32 strIdxOf(const char* str, char c) {
     return -1;
 }
 
+u32 strSplit(const char* str, char delimeter, char*** strDinoArray, b8 trimIt,
+             b8 includeZeroCharLines) {
+    if (!str || !strDinoArray) {
+        return 0;
+    }
+
+    char* r = 0;
+    u32 valCnt = 0;
+    u32 len = strLen(str);
+    char buffer[10000];
+    u32 curLen = 0;
+    char c;
+    // Loop through the characters
+    for (u32 i = 0; i < len; i++) {
+        c = str[i];
+        if (c == delimeter) {
+            buffer[curLen] = 0;
+            r = buffer;
+            if (trimIt && curLen > 0) {
+                r = strTrim(r);
+                curLen = strLen(r);
+            }
+
+            if (curLen > 0 || includeZeroCharLines) {
+                char* val =
+                    fallocate(sizeof(char) * (curLen + 1), MEMORY_TAG_STRING);
+
+                if (curLen == 0) {
+                    val[0] = 0;
+                } else {
+                    strNCpy(val, r, curLen);
+                    val[curLen] = 0;
+                }
+                dinoPush(*strDinoArray, val);
+                valCnt++;
+            }
+
+            fzeroMemory(buffer, sizeof(char) * 10000);
+            curLen = 0;
+            continue;
+        }
+
+        buffer[curLen] = c;
+        curLen++;
+    }
+
+    r = buffer;
+    if (trimIt && curLen > 0) {
+        r = strTrim(r);
+        len = strLen(r);
+    }
+
+    if (len > 0 || includeZeroCharLines) {
+        char* val = fallocate(sizeof(char) * (len + 1), MEMORY_TAG_STRING);
+
+        if (len == 0) {
+            val[0] = 0;
+        } else {
+            strNCpy(val, r, len);
+            val[len] = 0;
+        }
+        dinoPush(*strDinoArray, val);
+    }
+    valCnt++;
+    return valCnt;
+}
+
+void strCleanDinoArray(char** a){
+    if (a){
+        u32 l = dinoLength(a);
+        for (u32 i = 0; i < l; i++){
+            u32 x = strLen(a[i]);
+            ffree(a[i], sizeof(char) * (x + 1), MEMORY_TAG_STRING);
+        }
+
+        dinoClear(a);
+    }
+}
+
 b8 strToMat4(const char* str, mat4* outMat) {
     if (!str || !outMat) {
         return false;
@@ -148,21 +228,11 @@ b8 strToMat4(const char* str, mat4* outMat) {
 
     fzeroMemory(outMat, sizeof(mat4));
     i32 result = sscanf(str, "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
-                        &outMat->data[0],
-                        &outMat->data[1],
-                        &outMat->data[2],
-                        &outMat->data[3],
-                        &outMat->data[4],
-                        &outMat->data[5],
-                        &outMat->data[6],
-                        &outMat->data[7],
-                        &outMat->data[8],
-                        &outMat->data[9],
-                        &outMat->data[10],
-                        &outMat->data[11],
-                        &outMat->data[12],
-                        &outMat->data[13],
-                        &outMat->data[14],
+                        &outMat->data[0], &outMat->data[1], &outMat->data[2],
+                        &outMat->data[3], &outMat->data[4], &outMat->data[5],
+                        &outMat->data[6], &outMat->data[7], &outMat->data[8],
+                        &outMat->data[9], &outMat->data[10], &outMat->data[11],
+                        &outMat->data[12], &outMat->data[13], &outMat->data[14],
                         &outMat->data[15]);
     return result != -1;
 }
@@ -173,7 +243,8 @@ b8 strToVec4(const char* str, vector4* outVector) {
     }
 
     fzeroMemory(outVector, sizeof(vector4));
-    i32 result = sscanf(str, "%f %f %f %f", &outVector->x, &outVector->y, &outVector->z, &outVector->w);
+    i32 result = sscanf(str, "%f %f %f %f", &outVector->x, &outVector->y,
+                        &outVector->z, &outVector->w);
     return result != -1;
 }
 
@@ -183,7 +254,8 @@ b8 strToVec3(const char* str, vector3* outVector) {
     }
 
     fzeroMemory(outVector, sizeof(vector3));
-    i32 result = sscanf(str, "%f %f %f", &outVector->x, &outVector->y, &outVector->z);
+    i32 result =
+        sscanf(str, "%f %f %f", &outVector->x, &outVector->y, &outVector->z);
     return result != -1;
 }
 
@@ -305,4 +377,3 @@ b8 strToBool(const char* str, b8* b) {
     *b = strEqual(str, "1") || strEqualI(str, "true");
     return *b;
 }
-

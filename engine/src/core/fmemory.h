@@ -14,6 +14,7 @@
     TAG(MEMORY_TAG_APPLICATION)                                                \
     TAG(MEMORY_TAG_JOB)                                                        \
     TAG(MEMORY_TAG_TEXTURE)                                                    \
+    TAG(MEMORY_TAG_RESOURCE)                                                   \
     TAG(MEMORY_TAG_MATERIAL_INSTANCE)                                          \
     TAG(MEMORY_TAG_ALLOCATORS)                                                 \
     TAG(MEMORY_TAG_FILE_DATA)                                                  \
@@ -53,7 +54,8 @@ FSNAPI void memoryShutdown();
  * @brief Allocates memory. (Doesn't actually perform a malloc);
  * @param size Size of the block of memory needed
  * @param tag Memory tag used for debugging purposes to see memory leaks
- * @returns pointer to a block of memory, 0 if failed and outputs an error message
+ * @returns pointer to a block of memory, 0 if failed and outputs an error
+ * message
  */
 FSNAPI void* fallocate(u64 size, memoryTag tag);
 
@@ -62,7 +64,8 @@ FSNAPI void* fallocate(u64 size, memoryTag tag);
  * @param block Pointer to the memory block
  * @param size Size of the block of memory needed to be freed
  * @param tag Memory tag used for debugging purposes to see memory leaks
- * @returns pointer to a block of memory, 0 if failed and outputs an error message
+ * @returns pointer to a block of memory, 0 if failed and outputs an error
+ * message
  */
 FSNAPI void ffree(void* block, u64 size, memoryTag tag);
 

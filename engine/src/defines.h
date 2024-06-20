@@ -20,6 +20,11 @@ typedef double f64;
 typedef int b32;
 typedef _Bool b8;
 
+typedef struct range {
+    u64 offset;
+    u64 size;
+} range;
+
 #define INVALID_ID 4294967295U
 
 //Properly define static assertions.
