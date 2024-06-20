@@ -8,6 +8,7 @@ b8 vulkanBufferCreate(
     VkBufferUsageFlagBits usage,
     u32 memoryPropertyFlags,
     b8 autoBind,
+    b8 useFreelist,
     vulkanBuffer* outBuffer);
 
 void vulkanBufferDestroy(vulkanHeader* header, vulkanBuffer* buffer);

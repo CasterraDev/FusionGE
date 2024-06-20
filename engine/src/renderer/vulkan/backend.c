@@ -57,7 +57,7 @@ b8 uploadDataViaStagingBuffer(vulkanHeader* header, VkCommandPool pool,
     vulkanBufferCreate(header, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                       true, &vb);
+                       true, true, &vb);
 
     vulkanBufferLoadData(header, &vb, 0, size, 0, data);
 
@@ -78,7 +78,7 @@ b8 createBuffers(vulkanHeader* header) {
                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                            memoryPropertyFlags, true,
+                            memoryPropertyFlags, true, true,
                             &header->objectVertexBuffer)) {
         FERROR("Error creating vertex buffer.");
         return false;
@@ -89,7 +89,7 @@ b8 createBuffers(vulkanHeader* header) {
                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                            memoryPropertyFlags, true,
+                            memoryPropertyFlags, true, true,
                             &header->objectIndexBuffer)) {
         FERROR("Error creating vertex buffer.");
         return false;
@@ -873,7 +873,7 @@ b8 vulkanCreateTexture(const u8* pixels, texture* outTexture) {
     vulkanBufferCreate(&header,
                        outTexture->width * outTexture->height *
                            outTexture->channelCnt,
-                       usage, memFlags, true, &staging);
+                       usage, memFlags, true, true, &staging);
     vulkanBufferLoadData(&header, &staging, 0,
                          outTexture->width * outTexture->height *
                              outTexture->channelCnt,

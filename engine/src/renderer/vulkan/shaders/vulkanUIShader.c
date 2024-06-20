@@ -184,7 +184,7 @@ b8 vulkanUIShaderCreate(vulkanHeader* header, vulkanOverallShader* outShader) {
                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                       true, &outShader->globalUniformBuffer);
+                       true, true, &outShader->globalUniformBuffer);
 
     // TODO: Make this configurable
     VkDescriptorSetLayout layouts[3] = {outShader->globalDescriptorSetLayout,
@@ -211,7 +211,7 @@ b8 vulkanUIShaderCreate(vulkanHeader* header, vulkanOverallShader* outShader) {
                             // VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                            true, &outShader->objectUniformBuffer)) {
+                            true, true, &outShader->objectUniformBuffer)) {
         FERROR("UI instance buffer creation failed for shader.");
         return false;
     }

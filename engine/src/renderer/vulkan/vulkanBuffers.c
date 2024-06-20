@@ -6,22 +6,27 @@
 #include "helpers/freelist.h"
 
 void destroyFreelist(vulkanBuffer* buffer){
-    freelistDestroy(&buffer->bufferFreelist);
-    ffree(buffer->freelistBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
-    buffer->freelistMemReq = 0;
-    buffer->freelistBlock = 0;
+    if (buffer->usesFreelist){
+        freelistDestroy(&buffer->bufferFreelist);
+        ffree(buffer->freelistBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
+        buffer->freelistMemReq = 0;
+        buffer->freelistBlock = 0;
+    }
 }
 
-b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usage, u32 memoryPropertyFlags, b8 autoBind, vulkanBuffer* outBuffer){
+b8 vulkanBufferCreate(vulkanHeader* header, u64 size, VkBufferUsageFlagBits usage, u32 memoryPropertyFlags, b8 autoBind, b8 useFreelist, vulkanBuffer* outBuffer){
     fzeroMemory(outBuffer, sizeof(vulkanBuffer));
+    outBuffer->usesFreelist = useFreelist;
     outBuffer->totalSize = size;
     outBuffer->usageFlags = usage;
     outBuffer->memoryPropertyFlags = memoryPropertyFlags;
 
-    outBuffer->freelistMemReq = 0;
-    freelistCreate(size, &outBuffer->freelistMemReq, 0, 0);
-    outBuffer->freelistBlock = fallocate(outBuffer->freelistMemReq, MEMORY_TAG_RENDERER);
-    freelistCreate(size, &outBuffer->freelistMemReq, outBuffer->freelistBlock, &outBuffer->bufferFreelist);
+    if (outBuffer->usesFreelist){
+        outBuffer->freelistMemReq = 0;
+        freelistCreate(size, &outBuffer->freelistMemReq, 0, 0);
+        outBuffer->freelistBlock = fallocate(outBuffer->freelistMemReq, MEMORY_TAG_RENDERER);
+        freelistCreate(size, &outBuffer->freelistMemReq, outBuffer->freelistBlock, &outBuffer->bufferFreelist);
+    }
     
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     bufferCreateInfo.size = size;
@@ -80,6 +85,11 @@ b8 vulkanBufferAllocate(vulkanBuffer* buffer, u64 size, u64* outOffset) {
         FERROR("VulkanBufferAllocate failed. Needs valid parameters.\n");
         return false;
     }
+    if (!buffer->usesFreelist){
+        FWARN("VulkanBufferAllocate failed. Tried to use on buffer that does not use freelists. Offset set to 0. Most likely not correct");
+        *outOffset = 0;
+        return true;
+    }
     return freelistAllocateBlock(&buffer->bufferFreelist, size, outOffset);
 }
 
@@ -87,6 +97,10 @@ b8 vulkanBufferFree(vulkanBuffer* buffer, u64 size, u64 offset) {
     if (!buffer || !size){
         FERROR("VulkanBufferFree failed. Needs valid parameters. Parameters: buffer %p, size %d, offset %d\n", buffer, size, offset);
         return false;
+    }
+    if (!buffer->usesFreelist){
+        FWARN("VulkanBufferFree failed. Tried to free buffer that doesn't use freelists. Nothing happened");
+        return true;
     }
     return freelistFreeBlock(&buffer->bufferFreelist, size, offset);
 }
@@ -97,20 +111,22 @@ b8 vulkanBufferResize(vulkanHeader* header, u64 newSize, vulkanBuffer* buffer, V
         return false;
     }
 
-    // Resize freelist
-    u64 flNewMemReq = 0;
-    freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
-    void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
-    void* oldBlock = 0;
-    if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
-        FERROR("VulkanBufferResize failed to resize freelist.\n");
-        ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
-        return false;
-    }
+    if (buffer->usesFreelist){
+        // Resize freelist
+        u64 flNewMemReq = 0;
+        freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
+        void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
+        void* oldBlock = 0;
+        if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
+            FERROR("VulkanBufferResize failed to resize freelist.\n");
+            ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
+            return false;
+        }
 
-    ffree(oldBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
-    buffer->freelistMemReq = flNewMemReq;
-    buffer->freelistBlock = newBlock;
+        ffree(oldBlock, buffer->freelistMemReq, MEMORY_TAG_RENDERER);
+        buffer->freelistMemReq = flNewMemReq;
+        buffer->freelistBlock = newBlock;
+    }
     buffer->totalSize = newSize;
 
     VkBufferCreateInfo bufferCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};

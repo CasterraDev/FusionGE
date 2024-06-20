@@ -171,6 +171,7 @@ typedef struct vulkanBuffer {
     u64 freelistMemReq;
     void* freelistBlock;
     freelist bufferFreelist;
+    b8 usesFreelist;
 } vulkanBuffer;
 
 typedef struct vulkanGeometryBufferInfo {
