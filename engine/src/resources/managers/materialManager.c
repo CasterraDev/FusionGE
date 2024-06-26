@@ -21,7 +21,7 @@ b8 materialManagerLoad(resourceManager* self, const char* name,
     }
     outResource->fullPath = strDup(fileLocation);
 
-    material* resmat =
+    materialFileConfig* resmat =
         fallocate(sizeof(material), MEMORY_TAG_MATERIAL_INSTANCE);
     resmat->autoDelete = true;
     resmat->diffuseColor = vec4One();
@@ -57,8 +57,7 @@ b8 materialManagerLoad(resourceManager* self, const char* name,
         if (strEqualI(tvar, "Name")) {
             strCpy(resmat->name, tval);
         } else if (strEqualI(tvar, "DiffuseMapName")) { // TODO: TEMP
-            resmat->diffuseMap.texture =
-                textureSystemTextureGetCreate(tval, true);
+            strNCpy(resmat->DiffuseMapName, strTrim(tval), FILENAME_MAX_LENGTH);
         } else if (strEqualI(tvar, "DiffuseColor")) {
             // Parse the colour
             if (!strToVec4(tval, &resmat->diffuseColor)) {
@@ -71,8 +70,6 @@ b8 materialManagerLoad(resourceManager* self, const char* name,
         }
     }
     fsClose(&f);
-    resmat->generation = 0;
-    resmat->refCnt = 1;
 
     outResource->data = resmat;
     outResource->dataSize = sizeof(material);

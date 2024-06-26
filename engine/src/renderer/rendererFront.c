@@ -1,8 +1,8 @@
 #include "renderer/rendererFront.h"
+#include "core/fmemory.h"
 #include "core/fstring.h"
 #include "core/logger.h"
 #include "defines.h"
-#include "helpers/dinoArray.h"
 #include "math/fsnmath.h"
 #include "renderer/renderTypes.h"
 #include "renderer/rendererBack.h"
@@ -28,10 +28,10 @@ typedef struct rendererSystem {
     u32 pbrID;
     u32 uiID;
     // TODO: TEMP
-    camera* camm;
-    camera* cam1;
-    camera* cam2;
-    b8 first;
+    // camera* camm;
+    // camera* cam1;
+    // camera* cam2;
+    // b8 first;
 } rendererSystem;
 
 static rendererSystem* systemPtr;
@@ -69,43 +69,44 @@ b8 rendererInit(u64* memoryRequirement, void* memoryState,
         return false;
     }
     // TODO: TEMP
-    systemPtr->first = true;
-    cameraSystemAdd("Cam1");
-    cameraSystemAdd("Cam2");
-    systemPtr->camm = getCamera("main");
-    systemPtr->cam1 = getCamera("Cam1");
-    systemPtr->cam2 = getCamera("Cam2");
-    cameraMoveBackward(systemPtr->cam1, 30.0f);
-    cameraMoveBackward(systemPtr->cam2, 30.0f);
+    // systemPtr->first = true;
+    // cameraSystemAdd("Cam1");
+    // cameraSystemAdd("Cam2");
+    // systemPtr->camm = getCamera("main");
+    // systemPtr->cam1 = getCamera("Cam1");
+    // systemPtr->cam2 = getCamera("Cam2");
+    // cameraMoveBackward(systemPtr->cam1, 30.0f);
+    // cameraMoveBackward(systemPtr->cam2, 30.0f);
     // TODO: END TEMP
 
+
+    resource resui;
+    if (!resourceLoad(BUILTIN_MATERIAL_UI_NAME, RESOURCE_TYPE_SHADER, &resui)){
+        FERROR("Failed loading ui material shader config file");
+        return false;
+    }
+    shaderRS* sui = (shaderRS*)resui.data;
+    if (!shaderSystemCreate(sui)){
+        FERROR("Failed creating ui material");
+        return false;
+    }
+    resourceUnload(&resui);
+    systemPtr->uiID = shaderSystemGetID(BUILTIN_MATERIAL_UI_NAME);
+    u32 proj = shaderSystemUniformIdx(shaderSystemGetByID(systemPtr->uiID), "diffuse_color");
     resource res;
-    shaderRS* sdr = 0;
 
     if (!resourceLoad(BUILTIN_MATERIAL_PBR_NAME, RESOURCE_TYPE_SHADER, &res)){
         FERROR("Failed loading pbr material shader config file");
         return false;
     }
     shaderRS* s = (shaderRS*)res.data;
-    FINFO("Shader2: %d", dinoLength(s->uniforms));
     if (!shaderSystemCreate(s)){
         FERROR("Failed creating pbr material");
         return false;
     }
     resourceUnload(&res);
     systemPtr->pbrID = shaderSystemGetID(BUILTIN_MATERIAL_PBR_NAME);
-
-    if (!resourceLoad(BUILTIN_MATERIAL_UI_NAME, RESOURCE_TYPE_SHADER, &res)){
-        FERROR("Failed loading ui material shader config file");
-        return false;
-    }
-    s = (shaderRS*)res.data;
-    if (!shaderSystemCreate(s)){
-        FERROR("Failed creating ui material");
-        return false;
-    }
-    resourceUnload(&res);
-    systemPtr->uiID = shaderSystemGetID(BUILTIN_MATERIAL_UI_NAME);
+    u32 proj2 = shaderSystemUniformIdx(shaderSystemGetByID(systemPtr->pbrID), "diffuse_color");
     return true;
 }
 
@@ -139,40 +140,40 @@ b8 rendererDraw(renderHeader* renderHeader) {
             return false;
         }
         // TEMP
-        camera* cam = systemPtr->cam1;
-        if (systemPtr->first) {
-            cam = systemPtr->cam1;
-        } else {
-            cam = systemPtr->cam2;
-        }
-        f32 spd = 10.0f * renderHeader->deltaTime;
-        if (inputIsKeyPressed('K')) {
-            systemPtr->first = !systemPtr->first;
-        }
-        if (inputIsKeyDown('W')) {
-            cameraMoveUp(cam, spd);
-        }
-        if (inputIsKeyDown('S')) {
-            cameraMoveDown(cam, spd);
-        }
-        if (inputIsKeyDown('A')) {
-            cameraMoveLeft(cam, spd);
-        }
-        if (inputIsKeyDown('D')) {
-            cameraMoveRight(cam, spd);
-        }
-        if (inputIsKeyDown('E')) {
-            cameraMoveForward(cam, spd);
-        }
-        if (inputIsKeyDown('Q')) {
-            cameraMoveBackward(cam, spd);
-        }
-        if (inputIsKeyDown('Z')) {
-            cameraYaw(cam, spd);
-        }
-        if (inputIsKeyDown('X')) {
-            cameraYaw(cam, -spd);
-        }
+        // camera* cam = systemPtr->cam1;
+        // if (systemPtr->first) {
+        //     cam = systemPtr->cam1;
+        // } else {
+        //     cam = systemPtr->cam2;
+        // }
+        // f32 spd = 10.0f * renderHeader->deltaTime;
+        // if (inputIsKeyPressed('K')) {
+        //     systemPtr->first = !systemPtr->first;
+        // }
+        // if (inputIsKeyDown('W')) {
+        //     cameraMoveUp(cam, spd);
+        // }
+        // if (inputIsKeyDown('S')) {
+        //     cameraMoveDown(cam, spd);
+        // }
+        // if (inputIsKeyDown('A')) {
+        //     cameraMoveLeft(cam, spd);
+        // }
+        // if (inputIsKeyDown('D')) {
+        //     cameraMoveRight(cam, spd);
+        // }
+        // if (inputIsKeyDown('E')) {
+        //     cameraMoveForward(cam, spd);
+        // }
+        // if (inputIsKeyDown('Q')) {
+        //     cameraMoveBackward(cam, spd);
+        // }
+        // if (inputIsKeyDown('Z')) {
+        //     cameraYaw(cam, spd);
+        // }
+        // if (inputIsKeyDown('X')) {
+        //     cameraYaw(cam, -spd);
+        // }
         // END TEMP
         if (!shaderSystemUseByID(systemPtr->pbrID)) {
             FERROR("Failed to use shader");

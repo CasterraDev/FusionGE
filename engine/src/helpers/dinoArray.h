@@ -32,6 +32,9 @@ FSNAPI void* _dino_insert_at(void* array, u64 idx, void* valuePtr);
 #define dinoCreate(type) \
     _dino_create(DINO_DEFAULT_SIZE,sizeof(type));
 
+#define dinoCreateSize(size) \
+    _dino_create(DINO_DEFAULT_SIZE, size);
+
 #define dinoCreateReserve(length,type) \
     _dino_create(length,sizeof(type));
 

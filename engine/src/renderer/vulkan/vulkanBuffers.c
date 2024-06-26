@@ -115,7 +115,7 @@ b8 vulkanBufferResize(vulkanHeader* header, u64 newSize, vulkanBuffer* buffer, V
         freelistResize(&buffer->bufferFreelist, &flNewMemReq, 0, 0, 0);
         void * newBlock = fallocate(flNewMemReq, MEMORY_TAG_RENDERER);
         void* oldBlock = 0;
-        if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, oldBlock)){
+        if (!freelistResize(&buffer->bufferFreelist, &flNewMemReq, newSize, newBlock, &oldBlock)){
             FERROR("VulkanBufferResize failed to resize freelist.\n");
             ffree(newBlock, flNewMemReq, MEMORY_TAG_RENDERER);
             return false;

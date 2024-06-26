@@ -70,7 +70,7 @@ FSNAPI b8 freelistFreeBlock(freelist* list, u64 size, u64 offset);
  * @param newMemory 0, or a pre-allocated block of memory for the free list to use.
  * @param oldMemory 0, or an allocated block of memory that should be FREED externally after this function.
  */
-FSNAPI b8 freelistResize(freelist* list, u64* memoryReq, u64 size, void* newMemory, void* oldMemory);
+FSNAPI b8 freelistResize(freelist* list, u64* memoryReq, u64 size, void* newMemory, void** oldMemory);
 
 /**
  * @brief Clears the free list.

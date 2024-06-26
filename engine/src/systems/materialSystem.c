@@ -46,6 +46,8 @@ static materialSystemState* systemPtr;
 
 void destroyMaterial(material* mat);
 
+b8 loadMaterial(materialFileConfig config, material* m);
+
 void materialSystemInit(u64* memoryRequirement, void* state,
                         materialSystemSettings settings) {
     // Block of memory will contain state structure, then block for array, then
@@ -74,7 +76,7 @@ void materialSystemInit(u64* memoryRequirement, void* state,
     systemPtr->materials = materialsMem;
 
     hashtableCreate(sizeof(u64), settings.maxMaterialCnt, hashtableMem, false,
-                    &systemPtr->materialIDs);
+                    0, &systemPtr->materialIDs);
 
     for (u64 i = 0; i < systemPtr->settings.maxMaterialCnt; i++) {
         systemPtr->materials[i].id = INVALID_ID;
@@ -85,18 +87,18 @@ void materialSystemInit(u64* memoryRequirement, void* state,
     systemPtr->pbrID = s->id;
     systemPtr->pbrLocs.projection = shaderSystemUniformIdx(s, "projection");
     systemPtr->pbrLocs.view = shaderSystemUniformIdx(s, "view");
-    systemPtr->pbrLocs.diffuseColor = shaderSystemUniformIdx(s, "diffuseColor");
+    systemPtr->pbrLocs.diffuseColor = shaderSystemUniformIdx(s, "diffuse_color");
     systemPtr->pbrLocs.diffuseTexture =
-        shaderSystemUniformIdx(s, "diffuseTexture");
+        shaderSystemUniformIdx(s, "diffuse_texture");
     systemPtr->pbrLocs.model = shaderSystemUniformIdx(s, "model");
-    s = shaderSystemGet(BUILTIN_MATERIAL_UI_NAME);
-    systemPtr->uiID = s->id;
-    systemPtr->uiLocs.projection = shaderSystemUniformIdx(s, "projection");
-    systemPtr->uiLocs.view = shaderSystemUniformIdx(s, "view");
-    systemPtr->uiLocs.diffuseColor = shaderSystemUniformIdx(s, "diffuseColor");
+    shader* sui = shaderSystemGet(BUILTIN_MATERIAL_UI_NAME);
+    systemPtr->uiID = sui->id;
+    systemPtr->uiLocs.projection = shaderSystemUniformIdx(sui, "projection");
+    systemPtr->uiLocs.view = shaderSystemUniformIdx(sui, "view");
+    systemPtr->uiLocs.diffuseColor = shaderSystemUniformIdx(sui, "diffuse_color");
     systemPtr->uiLocs.diffuseTexture =
-        shaderSystemUniformIdx(s, "diffuseTexture");
-    systemPtr->uiLocs.model = shaderSystemUniformIdx(s, "model");
+        shaderSystemUniformIdx(sui, "diffuse_texture");
+    systemPtr->uiLocs.model = shaderSystemUniformIdx(sui, "model");
 
     materialSystemCreateDefault();
 }
@@ -119,12 +121,14 @@ b8 materialSystemCreateDefault() {
     fzeroMemory(&systemPtr->defaultMaterial, sizeof(material));
     systemPtr->defaultMaterial.id = INVALID_ID;
     systemPtr->defaultMaterial.generation = INVALID_ID;
-    strNCpy(systemPtr->defaultMaterial.name, DEFAULT_MATERIAL_NAME, MATERIAL_MAX_LENGTH);
+    strNCpy(systemPtr->defaultMaterial.name, DEFAULT_MATERIAL_NAME,
+            MATERIAL_MAX_LENGTH);
     systemPtr->defaultMaterial.diffuseColor = vec4One();
     systemPtr->defaultMaterial.diffuseMap.type = TEXTURE_USE_MAP_DIFFUSE;
     systemPtr->defaultMaterial.diffuseMap.texture = textureSystemGetDefault();
     shader* s = shaderSystemGet(BUILTIN_MATERIAL_PBR_NAME);
-    if (!rendererShaderAllocateInstanceStruct(s, &systemPtr->defaultMaterial.instanceID)){
+    if (!rendererShaderAllocateInstanceStruct(
+            s, &systemPtr->defaultMaterial.instanceID)) {
         FFATAL("Failed to make default material");
         return false;
     }
@@ -139,37 +143,55 @@ material* materialSystemMaterialGet(const char* name) {
     if (strEqual(name, DEFAULT_MATERIAL_NAME)) {
         return &systemPtr->defaultMaterial;
     }
+    resource matRes;
+    if (!resourceLoad(name, RESOURCE_TYPE_MATERIAL, &matRes)){
+        FERROR("Failed to load material: %s.", name);
+        return false;
+    }
+    materialFileConfig* config = (materialFileConfig*)matRes.data;
+    resourceUnload(&matRes);
+    return materialSystemMaterialGetByConfig(*config);
+}
 
+material* materialSystemMaterialGetByConfig(materialFileConfig config){
     u64 matID;
-    b8 alreadyCreated = hashtableGetID(&systemPtr->materialIDs, name, &matID);
+    b8 alreadyCreated = hashtableGetID(&systemPtr->materialIDs, config.name, &matID);
+    material* m = &systemPtr->materials[matID];
 
     if (!alreadyCreated) {
-        material* m;
-        resource res;
-        if (!resourceLoad(name, RESOURCE_TYPE_MATERIAL, &res)) {
-            m = materialSystemGetDefault();
-        } else {
-            m = (material*)res.data;
-        }
-        resourceUnload(&res);
-
-        shader* s = shaderSystemGetByID(m->shaderID);
-        if (s == 0){
-            FERROR("Couldn't get shader by id");
-            return false;
-        }
-
-        if  (!rendererShaderAllocateInstanceStruct(s, &m->instanceID)){
-            FERROR("Unable to acquire instance resources");
-            return 0;
-        }
-
+        loadMaterial(config, m);
         m->id = matID;
-        systemPtr->materials[matID] = *m;
-        hashtableSet(&systemPtr->materialIDs, name, &matID);
+        hashtableSet(&systemPtr->materialIDs, config.name, &matID);
     }
+
     systemPtr->materials[matID].generation++;
     return &systemPtr->materials[matID];
+} 
+
+b8 loadMaterial(materialFileConfig config, material* m){
+    fzeroMemory(m, sizeof(material));
+    strNCpy(m->name, config.name, MATERIAL_MAX_LENGTH);
+    m->shaderID = config.shaderID;
+    m->diffuseColor = config.diffuseColor;
+
+    if (strLen(config.DiffuseMapName) > 0){
+        m->diffuseMap.type = TEXTURE_USE_MAP_DIFFUSE;
+        m->diffuseMap.texture = textureSystemTextureGetCreate(config.DiffuseMapName, true);
+        if (!m->diffuseMap.texture){
+            FWARN("Unable to load texture: %s in material %s. Using default texture instead.", config.DiffuseMapName, m->name);
+            m->diffuseMap.texture = textureSystemGetDefault();
+        }
+    }else{
+        m->diffuseMap.type = TEXTURE_USE_UNKNOWN;
+        m->diffuseMap.texture = 0;
+    }
+    shader* s = shaderSystemGetByID(m->shaderID);
+    if (!rendererShaderAllocateInstanceStruct(s, &m->instanceID)) {
+        FERROR("Unable to acquire instance resources");
+        return 0;
+    }
+
+    return true;
 }
 
 void materialSystemMaterialRelease(const char* name) {
@@ -205,7 +227,8 @@ void materialSystemMaterialRelease(const char* name) {
 
 void destroyMaterial(material* mat) {
     if (mat) {
-        rendererShaderFreeInstanceStruct(shaderSystemGetByID(mat->shaderID), mat->instanceID);
+        rendererShaderFreeInstanceStruct(shaderSystemGetByID(mat->shaderID),
+                                         mat->instanceID);
 
         fzeroMemory(mat, sizeof(material));
         strNCpy(mat->name, "", 1);
@@ -215,41 +238,46 @@ void destroyMaterial(material* mat) {
     }
 }
 
-b8 materialSystemUpdateGlobal(u32 shaderID, const mat4* proj, const mat4* view){
-    if (shaderID == systemPtr->pbrID){
+b8 materialSystemUpdateGlobal(u32 shaderID, const mat4* proj,
+                              const mat4* view) {
+    if (shaderID == systemPtr->pbrID) {
         shaderSystemUniformSetByID(systemPtr->pbrLocs.projection, proj);
         shaderSystemUniformSetByID(systemPtr->pbrLocs.view, view);
-    }else if (shaderID == systemPtr->uiID){
+    } else if (shaderID == systemPtr->uiID) {
         shaderSystemUniformSetByID(systemPtr->uiLocs.projection, proj);
         shaderSystemUniformSetByID(systemPtr->uiLocs.view, view);
-    }else {
+    } else {
         FERROR("Material System: Unknown shaderID used");
         return false;
     }
     return shaderSystemApplyGlobal();
 }
 
-b8 materialSystemUpdateInstance(material* m){
-    shaderSystemBindInstance(m->shaderID);
-    if (m->shaderID == systemPtr->pbrID){
-        shaderSystemUniformSetByID(systemPtr->pbrLocs.diffuseColor, &m->diffuseColor);
-        shaderSystemUniformSetByID(systemPtr->pbrLocs.diffuseTexture, &m->diffuseMap.texture);
-    }else if (m->shaderID == systemPtr->uiID){
-        shaderSystemUniformSetByID(systemPtr->uiLocs.diffuseColor, &m->diffuseColor);
-        shaderSystemUniformSetByID(systemPtr->uiLocs.diffuseTexture, &m->diffuseMap.texture);
-    }else {
+b8 materialSystemUpdateInstance(material* m) {
+    shaderSystemBindInstance(m->instanceID);
+    if (m->shaderID == systemPtr->pbrID) {
+        shaderSystemUniformSetByID(systemPtr->pbrLocs.diffuseColor,
+                                   &m->diffuseColor);
+        shaderSystemUniformSetByID(systemPtr->pbrLocs.diffuseTexture,
+                                   &m->diffuseMap.texture);
+    } else if (m->shaderID == systemPtr->uiID) {
+        shaderSystemUniformSetByID(systemPtr->uiLocs.diffuseColor,
+                                   &m->diffuseColor);
+        shaderSystemUniformSetByID(systemPtr->uiLocs.diffuseTexture,
+                                   &m->diffuseMap.texture);
+    } else {
         FERROR("Material System: Unknown shaderID used");
         return false;
     }
     return shaderSystemApplyInstance();
 }
 
-b8 materialSystemUpdateLocal(material* m, const mat4* model){
-    if (m->shaderID == systemPtr->pbrID){
+b8 materialSystemUpdateLocal(material* m, const mat4* model) {
+    if (m->shaderID == systemPtr->pbrID) {
         shaderSystemUniformSetByID(systemPtr->pbrLocs.model, model);
-    }else if (m->shaderID == systemPtr->uiID){
+    } else if (m->shaderID == systemPtr->uiID) {
         shaderSystemUniformSetByID(systemPtr->uiLocs.model, model);
-    }else {
+    } else {
         FERROR("Material System: Unknown shaderID used");
         return false;
     }

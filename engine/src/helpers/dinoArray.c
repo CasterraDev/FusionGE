@@ -8,6 +8,7 @@ void* _dino_create(u64 length, u64 stride){
     u64 header = DINOARRAY_FIELD_LENGTH * sizeof(u64);
     u64 mix = (length * stride) + header;
     u64* newArr = fallocate(mix,MEMORY_TAG_DINO);
+    fsetMemory(newArr, 0, mix);
     //Set header info
     newArr[DINOARRAY_MAX_SIZE] = length;
     newArr[DINOARRAY_LENGTH] = 0; //Length of current elements

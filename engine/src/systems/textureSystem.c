@@ -45,7 +45,7 @@ void textureSystemInit(u64* memoryRequirement, void* state, textureSystemSetting
 
     systemPtr->textures = texturesMem;
 
-    hashtableCreate(sizeof(u64), settings.maxTextureCnt, hashtableMem, false, &systemPtr->textureIDs);
+    hashtableCreate(sizeof(u64), settings.maxTextureCnt, hashtableMem, false, 0, &systemPtr->textureIDs);
 
     for (u64 i = 0; i < systemPtr->settings.maxTextureCnt; i++){
         systemPtr->textures[i].id = INVALID_ID;
@@ -212,6 +212,7 @@ b8 loadTexture(const char* textureName, texture* t) {
     temp.autoDelete = t->autoDelete;
     temp.hasTransparency = hasTransparency;
     temp.generation = INVALID_ID;
+    temp.data = irs;
 
     // Acquire internal texture resources and upload to GPU.
     rendererCreateTexture(irs->pixels, &temp);

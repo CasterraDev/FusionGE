@@ -16,7 +16,7 @@ typedef struct entry {
     void* value;
 } entry;
 
-FSNAPI void hashtableCreate(u64 elementStride, u32 elementLength, void* memory, b8 isPointerData, hashtable* outHashtable);
+FSNAPI void hashtableCreate(u64 elementStride, u32 elementLength, void* memory, b8 isPointerData, u64* memReq, hashtable* outHashtable);
 FSNAPI void hashtableDestroy(hashtable* ht);
 
 /** @brief Set a hashtable entry by using a name key; will overwrite; does not look for collisions or do any linear probing*/

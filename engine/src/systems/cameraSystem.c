@@ -28,7 +28,7 @@ void cameraSystemInit(u64* memoryRequirement, void* state, u32 maxCameras){
     systemPtr->cameras = state + sizeof(cameraSystemState);
     systemPtr->hashtableMemory = state + sizeof(cameraSystemState) + sizeof(camLookup) * maxCameras;
 
-    hashtableCreate(sizeof(u64), maxCameras, systemPtr->hashtableMemory, false, &systemPtr->cameraIDs);
+    hashtableCreate(sizeof(u64), maxCameras, systemPtr->hashtableMemory, false, 0, &systemPtr->cameraIDs);
 
     systemPtr->mainCam = cameraCreate();
 

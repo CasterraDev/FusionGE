@@ -182,6 +182,7 @@ b8 shaderManagerLoad(resourceManager* self, const char* name,
             } else if (strEqualI(fields[0], "sampler") || strEqualI(fields[0], "samp")) {
                 un.type = SHADER_UNIFORM_TYPE_SAMPLER;
                 un.size = 0;
+                FINFO("Sampler read");
             } else {
                 FERROR("ShaderCfg %s: Invalid uniform type used. %s", r->name, fields[0]);
                 FWARN("Defaulting to f32.");

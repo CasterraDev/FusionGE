@@ -242,6 +242,12 @@ b8 appCreate(game* gameInst) {
     }
 
     // TODO: Place rendererInit here
+    if (!rendererInit(&appstate->rendererSystemMemoryRequirement,
+                 appstate->rendererSystemPtr,
+                 appstate->gameInstance->appConfig.name)){
+        FERROR("Failed to init renderer");
+        return false;
+    }
 
     // Get memory requirements for all systems
     u64 systemsMemRequirement = 0;
@@ -275,15 +281,6 @@ b8 appCreate(game* gameInst) {
         &appstate->systemsAllocator, appstate->cameraSystemMemoryRequirement);
     cameraSystemInit(&appstate->cameraSystemMemoryRequirement,
                      appstate->cameraSystemPtr, 24);
-
-    // TODO: TEMPorary renderer is placed here cuz some temp code in it needs
-    // the camera system inited. Place under second platformStartup call
-    if (!rendererInit(&appstate->rendererSystemMemoryRequirement,
-                 appstate->rendererSystemPtr,
-                 appstate->gameInstance->appConfig.name)){
-        FERROR("Failed to init renderer");
-        return false;
-    }
 
     appstate->textureSystemPtr = linearAllocAllocate(
         &appstate->systemsAllocator, appstate->textureSystemMemoryRequirement);

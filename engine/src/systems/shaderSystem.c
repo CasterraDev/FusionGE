@@ -18,10 +18,14 @@ typedef struct shaderSystemState {
     // Array of shaders.
     shader* shaders;
     int actualShaderCnt;
-    shader* curShader;
+    u32 curShaderID;
 } shaderSystemState;
 
 static shaderSystemState* systemPtr = 0;
+
+b8 addUniform(shader* s, const char* uniformName, u32 size,
+              shaderUniformType type, shaderScope scope, u32 location,
+              b8 isSampler);
 
 u32 getShaderID(const char* shaderName) {
     u32 id = INVALID_ID;
@@ -39,7 +43,7 @@ b8 shaderSystemInit(u64* memReq, void* memory, shaderSystemSettings settings) {
     }
 
     u64 stateReq = sizeof(shaderSystemState);
-    u64 hashtableReq = sizeof(u32) * settings.maxShaderCnt;
+    u64 hashtableReq = sizeof(entry) * settings.maxShaderCnt;
     u64 shaderArrayReq = sizeof(shader) * settings.maxShaderCnt;
     *memReq = stateReq + hashtableReq + shaderArrayReq;
 
@@ -49,16 +53,19 @@ b8 shaderSystemInit(u64* memReq, void* memory, shaderSystemSettings settings) {
 
     // Give the memory blocks to the systemPtr vars
     systemPtr = memory;
-    systemPtr->hashtableMemory = (void*)(memory + stateReq);
+    systemPtr->hashtableMemory = (void*)((u64)memory + stateReq);
     systemPtr->shaders = (void*)(systemPtr->hashtableMemory + hashtableReq);
 
     systemPtr->settings = settings;
 
     systemPtr->actualShaderCnt = 0;
+    systemPtr->curShaderID = INVALID_ID;
 
     // Create the hashtable
     hashtableCreate(sizeof(u32), settings.maxShaderCnt,
-                    systemPtr->hashtableMemory, false, &systemPtr->shaderIDs);
+                    systemPtr->hashtableMemory, false, 0,
+                    &systemPtr->shaderIDs);
+
 
     return true;
 }
@@ -78,7 +85,6 @@ b8 shaderSystemShutdown(void* state) {
 }
 
 b8 shaderSystemCreate(const shaderRS* config) {
-    FINFO("Shader3: %d", dinoLength(config->uniforms));
     if (systemPtr->actualShaderCnt > systemPtr->settings.maxShaderCnt) {
         FERROR("Shader array is full. Booting...");
         return false;
@@ -105,8 +111,10 @@ b8 shaderSystemCreate(const shaderRS* config) {
 
     u64 elSize = sizeof(u16);
     u64 elCnt = 512;
-    s->uniformHashtableBlock = fallocate(elSize * elCnt, MEMORY_TAG_ARRAY);
-    hashtableCreate(elSize, elCnt, s->uniformHashtableBlock, false,
+    u64 memReq;
+    hashtableCreate(elSize, elCnt, 0, false, &memReq, 0);
+    s->uniformHashtableBlock = fallocate(sizeof(entry) * 512, MEMORY_TAG_ARRAY);
+    hashtableCreate(elSize, elCnt, s->uniformHashtableBlock, false, &memReq,
                     &s->uniformsHT);
 
     s->globalUBOSize = 0;
@@ -174,132 +182,35 @@ b8 shaderSystemCreate(const shaderRS* config) {
 
     // Add uniforms if sampler/uniform
     for (u32 i = 0; i < config->uniformCnt; i++) {
-        FINFO("ShaderLoop: %d", dinoLength(config->uniforms));
-        // Check to make sure uniform isn't inited
-        if (s->state != SHADER_STATE_UN_INITED) {
-            FERROR("You can only add uniforms to shaders that haven't been "
-                   "inited.");
-            return false;
-        }
-
-        // Check if name is already used
-        // u16 x;
-        // if (hashtableGet(&s->uniformsHT, config->uniforms[i].name, &x)) {
-        //     FERROR("Uniform: '%s' already exists on Shader: '%s'",
-        //            config->uniforms[i].name, s->name);
-        //     return false;
-        // }
         if (config->uniforms[i].type == SHADER_UNIFORM_TYPE_SAMPLER) {
-            // Add it as a sampler
-
-            if (config->uniforms[i].scope == SHADER_SCOPE_INSTANCE &&
-                !s->hasInstances) {
-                FERROR("Cannot add sampler with scope instance to a shader "
-                       "that doesn't support instances");
-                return false;
-            }
-
-            if (config->uniforms[i].scope == SHADER_SCOPE_LOCAL) {
-                FERROR("Samples cannot be added to push consts");
-                return false;
-            }
-
             u32 location = 0;
-            // If global push to global texture list
-            // Set location to globalTextureCnt
             if (config->uniforms[i].scope == SHADER_SCOPE_GLOBAL) {
-                location = dinoLength(s->globalTextures);
-                // Make sure theirs room in the global array
-                if (location + 1 > systemPtr->settings.maxGlobalTextures) {
-                    FERROR("Shader's global texture array is full");
+                u32 globalTextureCnt = dinoLength(s->globalTextures);
+                if (globalTextureCnt + 1 > systemPtr->settings.maxGlobalTextures){
+                    FERROR("Full global textures");
                     return false;
                 }
-                // Just push a default texture for now
+                location = globalTextureCnt;
                 dinoPush(s->globalTextures, textureSystemGetDefault());
-            } else {
-                if (s->instanceTextureCnt + 1 >
-                    systemPtr->settings.maxInstanceTextures) {
-                    FERROR("Shader instance array is full");
+            }else if (config->uniforms[i].scope == SHADER_SCOPE_INSTANCE){
+                if (s->instanceTextureCnt + 1 > systemPtr->settings.maxInstanceTextures){
+                    FERROR("Full Instance textures for shader %s.", s->name);
                     return false;
                 }
                 location = s->instanceTextureCnt;
                 s->instanceTextureCnt++;
             }
-
-            u32 uniCnt = dinoLength(s->uniforms);
-            if (uniCnt + 1 > systemPtr->settings.maxUniformCnt) {
-                FERROR("UniformSampler: Uniform array is full.");
+            if (!addUniform(s, config->uniforms[i].name, 0, config->uniforms[i].type,
+                       config->uniforms[i].scope, location, true)){
+                FERROR("Failed to add sampler");
                 return false;
             }
-
-            shaderUniform un;
-            un.index = uniCnt;
-            un.scope = config->uniforms[i].scope;
-            un.type = config->uniforms[i].type;
-            un.setIdx = un.scope;
-            un.offset = 0;
-            un.size = 0;
-
-            if (!hashtableSet(&s->uniformsHT, config->uniforms[i].name,
-                              &un.index)) {
+        } else {
+            if (!addUniform(s, config->uniforms[i].name, config->uniforms[i].size,
+                       config->uniforms[i].type, config->uniforms[i].scope, 0,
+                       false)){
                 FERROR("Failed to add uniform");
                 return false;
-            }
-            dinoPush(s->uniforms, un);
-        } else {
-            // Add it as a uniform
-
-            // Make sure theirs room in the array for more uniforms
-            u32 uniCnt = dinoLength(s->uniforms);
-            FINFO("Shader4: %d", uniCnt);
-            if (uniCnt + 1 > systemPtr->settings.maxUniformCnt) {
-                FERROR("Uniform array is full.");
-                return false;
-            }
-
-            shaderUniform un;
-            un.index = uniCnt;
-            un.scope = config->uniforms[i].scope;
-            un.type = config->uniforms[i].type;
-            un.location = uniCnt;
-
-            if (config->uniforms[i].scope != SHADER_SCOPE_LOCAL) {
-                if (un.scope == SHADER_SCOPE_GLOBAL) {
-                    un.offset = s->globalUBOSize;
-                } else {
-                    un.offset = s->uniformUBOSize;
-                }
-                un.size = config->uniforms[i].size;
-                un.setIdx = (u32)config->uniforms[i].scope;
-            } else {
-                if (!s->hasLocals) {
-                    FERROR("Cannot add local uniform to a shader that doesn't "
-                           "support locals");
-                    return false;
-                }
-                un.setIdx = INVALID_ID_U8;
-                // Push a new aligned range (align to 4 cuz of vulkan spec)
-                range r = getAlignedRange(s->pushConstSize,
-                                          config->uniforms[i].size, 4);
-                un.offset = r.offset;
-                un.size = r.size;
-
-                s->pushConstRanges[s->pushConstRangeCnt] = r;
-                s->pushConstRangeCnt++;
-
-                s->pushConstSize += r.size;
-            }
-
-            if (!hashtableSet(&s->uniformsHT, config->uniforms[i].name,
-                              &un.index)) {
-                FERROR("Failed to add uniform to HT");
-                return false;
-            }
-            dinoPush(s->uniforms, un);
-            if (un.scope == SHADER_SCOPE_GLOBAL) {
-                s->globalUBOSize += un.size;
-            } else if (un.scope == SHADER_SCOPE_INSTANCE) {
-                s->uniformUBOSize += un.size;
             }
         }
     }
@@ -309,6 +220,7 @@ b8 shaderSystemCreate(const shaderRS* config) {
         FERROR("Failed to init shader %s", s->name);
         return false;
     }
+
     // Set the hashtable to the id if everything is successful
     if (!hashtableSet(&systemPtr->shaderIDs, config->name, &s->id)) {
         // Destroy shader if hashtable fails
@@ -327,6 +239,10 @@ void shaderDestroy(shader* s) {
         u32 l = strLen(s->name);
         ffree(s->name, l + 1, MEMORY_TAG_STRING);
     }
+    if (s->uniformHashtableBlock != 0) {
+        // TODO: Get the size of the shader to free the hashtable
+        // ffree(s->uniformHashtableBlock, s. MEMORY_TAG_ARRAY);
+    }
     s->name = 0;
 }
 
@@ -341,12 +257,16 @@ void shaderSystemDestroy(const char* shaderName) {
 u32 shaderSystemGetID(const char* shaderName) {
     return getShaderID(shaderName);
 }
+
 shader* shaderSystemGetByID(u32 shaderID) {
-    return (shaderID >= systemPtr->settings.maxShaderCnt ||
-            systemPtr->shaders[shaderID].id == INVALID_ID)
-               ? 0
-               : &systemPtr->shaders[shaderID];
+    if (shaderID >= systemPtr->settings.maxShaderCnt ||
+            systemPtr->shaders[shaderID].id == INVALID_ID){
+        FWARN("Shader with ID: %d. Either exceeds the `maxShaderCnt` config value or is not created yet");
+        return 0;
+    }
+    return &systemPtr->shaders[shaderID];
 }
+
 shader* shaderSystemGet(const char* shaderName) {
     u32 id = getShaderID(shaderName);
     return (id == INVALID_ID) ? 0 : shaderSystemGetByID(id);
@@ -359,51 +279,55 @@ b8 shaderSystemUse(const char* shaderName) {
 }
 
 b8 shaderSystemUseByID(u32 shaderID) {
-    shader* s = shaderSystemGetByID(shaderID);
-    if (!rendererShaderUse(s)){
-        FERROR("Failed to use shader %s.", s->name);
-        return false;
-    }
-    if (!rendererShaderBindGlobals(s)){
-        FERROR("Failed to bind globals for shader %s", s->name);
-        return false;
+    if (systemPtr->curShaderID != shaderID) {
+        shader* s = shaderSystemGetByID(shaderID);
+        if (!rendererShaderUse(s)) {
+            FERROR("Failed to use shader %s.", s->name);
+            return false;
+        }
+        if (!rendererShaderBindGlobals(s)) {
+            FERROR("Failed to bind globals for shader %s", s->name);
+            return false;
+        }
+        systemPtr->curShaderID = shaderID;
     }
     return true;
 }
 
-u16 shaderSystemUniformIdx(shader* s, const char* uniformName){
-    if (s->id == INVALID_ID){
+u16 shaderSystemUniformIdx(shader* s, const char* uniformName) {
+    if (s->id == INVALID_ID) {
         FERROR("ShaderSystemUniformIdx: Shader is not valid");
     }
+    // u16 x = (u16)hashtableGetRt(&s->uniformsHT, uniformName);
     u16 x = INVALID_ID_U16;
-    if (!hashtableGet(&s->uniformsHT, uniformName, &x)){
+    if (!hashtableGet(&s->uniformsHT, uniformName, &x)) {
         FERROR("ShaderSystemUniformIdx: Couldn't find uniform");
         return INVALID_ID_U16;
     }
     return s->uniforms[x].index;
 }
 
-b8 shaderSystemUniformSet(const char* uniformName, const void* val){
-    shader* s = systemPtr->curShader;
+b8 shaderSystemUniformSet(const char* uniformName, const void* val) {
+    shader* s = shaderSystemGetByID(systemPtr->curShaderID);
     u16 id = INVALID_ID_U16;
-    if (!hashtableGet(&s->uniformsHT, uniformName, &id)){
+    if (!hashtableGet(&s->uniformsHT, uniformName, &id)) {
         FERROR("ShaderSystemSamplerSet: Couldn't set uniform/sampler");
         return false;
     }
-    return true;
+    return shaderSystemUniformSetByID(id, val);
 }
 
-b8 shaderSystemSamplerSet(const char* samplerName, const void* val){
+b8 shaderSystemSamplerSet(const char* samplerName, const void* val) {
     return shaderSystemUniformSet(samplerName, val);
 }
 
-b8 shaderSystemUniformSetByID(u16 uniformID, const void* val){
-    shader* s = systemPtr->curShader;
+b8 shaderSystemUniformSetByID(u16 uniformID, const void* val) {
+    shader* s = shaderSystemGetByID(systemPtr->curShaderID);
     shaderUniform* un = &s->uniforms[uniformID];
-    if (s->boundScope != un->scope){
-        if (un->scope == SHADER_SCOPE_GLOBAL){
+    if (s->boundScope != un->scope) {
+        if (un->scope == SHADER_SCOPE_GLOBAL) {
             rendererShaderBindGlobals(s);
-        } else if (un->scope == SHADER_SCOPE_INSTANCE){
+        } else if (un->scope == SHADER_SCOPE_INSTANCE) {
             rendererShaderBindInstance(s, s->boundInstanceId);
         }
         s->boundScope = un->scope;
@@ -411,18 +335,85 @@ b8 shaderSystemUniformSetByID(u16 uniformID, const void* val){
     return rendererSetUniform(s, un, val);
 }
 
-b8 shaderSystemSamplerSetByID(u16 samplerID, const void* val){
+b8 shaderSystemSamplerSetByID(u16 samplerID, const void* val) {
     return shaderSystemUniformSetByID(samplerID, val);
 }
 
 b8 shaderSystemApplyGlobal() {
-    return rendererShaderApplyGlobals(systemPtr->curShader);
+    return rendererShaderApplyGlobals(
+        shaderSystemGetByID(systemPtr->curShaderID));
 }
 
 b8 shaderSystemApplyInstance() {
-    return rendererShaderApplyInstance(systemPtr->curShader);
+    return rendererShaderApplyInstance(
+        shaderSystemGetByID(systemPtr->curShaderID));
 }
 
 b8 shaderSystemBindInstance(u32 instanceID) {
-    return rendererShaderBindInstance(systemPtr->curShader, instanceID);
+    shader* s = &systemPtr->shaders[systemPtr->curShaderID];
+    s->boundInstanceId = instanceID;
+    return rendererShaderBindInstance(
+        shaderSystemGetByID(systemPtr->curShaderID), instanceID);
+}
+
+b8 addUniform(shader* s, const char* uniformName, u32 size,
+              shaderUniformType type, shaderScope scope, u32 location,
+              b8 isSampler) {
+    u32 uniCnt = dinoLength(s->uniforms);
+    if (uniCnt + 1 > systemPtr->settings.maxUniformCnt) {
+        FERROR("UniformSampler: Uniform array is full.");
+        return false;
+    }
+
+    shaderUniform un;
+    un.index = uniCnt;
+    un.scope = scope;
+    un.type = type;
+    b8 isGlobal = (scope == SHADER_SCOPE_GLOBAL);
+    if (isSampler) {
+        un.location = location;
+    } else {
+        un.location = un.index;
+    }
+
+    if (scope != SHADER_SCOPE_LOCAL) {
+        un.setIdx = (u32)scope;
+        un.offset = isSampler  ? 0
+                    : isGlobal ? s->globalUBOSize
+                               : s->uniformUBOSize;
+        un.size = isSampler ? 0 : size;
+    } else {
+        if (un.scope == SHADER_SCOPE_LOCAL && !s->hasLocals) {
+            FERROR("Cannot add local uniform to a shader that doesn't "
+                   "support locals");
+            return false;
+        }
+
+        un.setIdx = INVALID_ID_U8;
+        range r = getAlignedRange(s->pushConstSize, size, 4);
+        un.offset = r.offset;
+        un.size = r.size;
+
+        s->pushConstRanges[s->pushConstRangeCnt] = r;
+        s->pushConstRangeCnt++;
+
+        s->pushConstSize += r.size;
+    }
+
+    dinoPush(s->uniforms, un);
+    FINFO("%s: %d", uniformName, s->uniforms[uniCnt].index);
+    if (!hashtableSet(&s->uniformsHT, uniformName, &s->uniforms[uniCnt].index)) {
+        FERROR("Failed to add uniform");
+        return false;
+    }
+
+    if (!isSampler) {
+        if (un.scope == SHADER_SCOPE_GLOBAL) {
+            s->globalUBOSize += un.size;
+        } else if (un.scope == SHADER_SCOPE_INSTANCE) {
+            s->uniformUBOSize += un.size;
+        }
+    }
+
+    return true;
 }

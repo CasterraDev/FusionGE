@@ -21,7 +21,7 @@ void invalidateNode(freelist* list, freelistNode* node);
 
 void freelistCreate(u64 totalSize, u64* memoryRequirement, void* memory,
                     freelist* outList) {
-    u64 maxEntries = (totalSize / sizeof(void*));
+    u64 maxEntries = (totalSize / (sizeof(void*) * sizeof(freelistNode)));
 
     *memoryRequirement = sizeof(internalState) + (sizeof(freelistNode) * maxEntries);
 
@@ -187,7 +187,7 @@ b8 freelistFreeBlock(freelist* list, u64 size, u64 offset) {
     return false;
 }
 
-b8 freelistResize(freelist* list, u64* memoryReq, u64 size, void* newMemory, void* oldMemory){
+b8 freelistResize(freelist* list, u64* memoryReq, u64 size, void* newMemory, void** oldMemory){
     u64 maxEntries = (size / sizeof(void*)); // NOTE: Max amount of entries that the
                                      // freelist could have
 
@@ -198,7 +198,7 @@ b8 freelistResize(freelist* list, u64* memoryReq, u64 size, void* newMemory, voi
         return true;
     }
     
-    oldMemory = list->memory;
+    *oldMemory = list->memory;
     internalState* oldState = (internalState*)list->memory;
     u64 sizeDiff = size - oldState->totalSize;
     // Setup the new memory

@@ -22,7 +22,7 @@ typedef struct materialFileConfig{
 void materialSystemInit(u64* memoryRequirement, void* state, materialSystemSettings settings);
 void materialSystemShutdown(void* state);
 material* materialSystemMaterialGet(const char* name);
-material* materialSystemMaterialGetFromConfig(const char* name);
+material* materialSystemMaterialGetByConfig(materialFileConfig config);
 void materialSystemMaterialRelease(const char* name);
 b8 materialSystemCreateDefault();
 material* materialSystemGetDefault();

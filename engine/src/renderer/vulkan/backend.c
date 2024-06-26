@@ -1059,18 +1059,19 @@ b8 vulkanShaderCreate(shader* shader, u8 renderpassID, u8 stageCnt,
         fallocate(sizeof(vulkanOverallShader), MEMORY_TAG_RENDERER);
 
     // TODO: Make this actually look up the renderpass IDs
-    vulkanRenderpass* renderpass =
-        (renderpassID == 1) ? &header.mainRenderpass : &header.uiRenderpass;
+    FINFO("Renderpass: %d", renderpassID);
 
     vulkanOverallShader* vkShader = (vulkanOverallShader*)shader->internalData;
 
-    vkShader->renderpass = renderpass;
+    vkShader->renderpass =
+        (renderpassID == 0) ? &header.mainRenderpass : &header.uiRenderpass;
 
     // TODO: Make this config
     u32 maxDescAllocateCnt = 1024;
+    vkShader->config.maxDescSetCnt = maxDescAllocateCnt;
 
     fzeroMemory(vkShader->config.stages,
-                sizeof(vulkanOverallShaderConfig) * VULKAN_SHADER_MAX_STAGES);
+                sizeof(vulkanStageInfo) * VULKAN_SHADER_MAX_STAGES);
     vkShader->config.stageCnt = 0;
 
     VkShaderStageFlagBits stageFlag;
@@ -1204,7 +1205,7 @@ b8 vulkanShaderInit(shader* s) {
                 sizeof(vulkanShaderStage) * VULKAN_SHADER_MAX_STAGES);
     for (u32 i = 0; i < vkShader->config.stageCnt; i++) {
         if (!createModule(vkShader, vkShader->config.stages[i],
-                          vkShader->stages)) {
+                          &vkShader->stages[i])) {
             FERROR("Unable to create shader module.");
             return false;
         }
@@ -1258,6 +1259,8 @@ b8 vulkanShaderInit(shader* s) {
                 c->bindings[BINDING_INDEX_SAMPLER].binding =
                     BINDING_INDEX_SAMPLER;
                 c->bindings[BINDING_INDEX_SAMPLER].descriptorCount = 1;
+                c->bindings[BINDING_INDEX_SAMPLER].descriptorType =
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 c->bindings[BINDING_INDEX_SAMPLER].stageFlags =
                     VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
                 c->bindCnt++;
@@ -1344,8 +1347,8 @@ b8 vulkanShaderInit(shader* s) {
     // Set the UBO alignment reqs
     s->reqUBOAlignment =
         header.device.properties.limits.minUniformBufferOffsetAlignment;
-    s->globalUBOStride = getAligned(s->globalUBOStride, s->reqUBOAlignment);
-    s->uniformUBOStride = getAligned(s->uniformUBOStride, s->reqUBOAlignment);
+    s->globalUBOStride = getAligned(s->globalUBOSize, s->reqUBOAlignment);
+    s->uniformUBOStride = getAligned(s->uniformUBOSize, s->reqUBOAlignment);
 
     u32 deviceSupportsLocalHost = (header.device.supportsDeviceLocalHost)
                                       ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT

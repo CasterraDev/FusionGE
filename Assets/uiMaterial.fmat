@@ -5,4 +5,5 @@ Name=UIMaterial
 #Vec4 typed with f32's and values separated by a space
 DiffuseColor=1.0 1.0 1.0 1.0
 DiffuseMapName=orange_lines_512.png
+Shader=Builtin.Shader.UI
 Type=UI
